@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\security;
+namespace App\Http\Controllers\Security;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -26,6 +26,17 @@ class UserController extends Controller
         }
         $username=$request->input('username');
         $password=$request->input('password');
+        $database=$request->input('database');
+
+        // Set tenant connection dynamically
+        Config::set('database.connections.tenant.database', $database);
+
+        // Reconnect with new DB
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Optional: make 'tenant' the default connection
+        DB::setDefaultConnection('tenant');
 
         $user=Users::selectRaw("password0")
         ->where('user_id',$username)
