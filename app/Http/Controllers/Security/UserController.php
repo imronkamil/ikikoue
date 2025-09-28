@@ -13,6 +13,18 @@ use Pages;
 class UserController extends Controller
 {
     public function store_auth(Request $request) {
+        $database=$request->input('database');
+
+        // Set tenant connection dynamically
+        Config::set('database.connections.tenant.database', $database);
+
+        // Reconnect with new DB
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Optional: make 'tenant' the default connection
+        DB::setDefaultConnection('tenant');
+
         $validator=Validator::make($request->all(),[
             'username'=>'bail|required',
             'password'=>'bail|required'
@@ -26,17 +38,6 @@ class UserController extends Controller
         }
         $username=$request->input('username');
         $password=$request->input('password');
-        $database=$request->input('database');
-
-        // Set tenant connection dynamically
-        Config::set('database.connections.tenant.database', $database);
-
-        // Reconnect with new DB
-        DB::purge('tenant');
-        DB::reconnect('tenant');
-
-        // Optional: make 'tenant' the default connection
-        DB::setDefaultConnection('tenant');
 
         $user=Users::selectRaw("password0")
         ->where('user_id',$username)
