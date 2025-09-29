@@ -88,7 +88,9 @@ class BahanSatuanController extends Controller
 
             $bahansat = BahanSatuan::where('bahan_satuan_id',$line['bahan_satuan_id'])->first();
             if (!($bahansat)) {
+                $bahansatidnew = BahanSatuan::max('bahan_satuan_id') + 1;
                 $bahansat = new BahanSatuan();
+                $bahansat['bahan_satuan_id'] = $bahansatidnew;
             }
             $bahansat->kd_bahan = $line['kd_bahan'];
             $bahansat->satuan = $line['satuan'];

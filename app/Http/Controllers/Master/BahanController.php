@@ -389,7 +389,9 @@ class BahanController extends Controller
 
                 $hargajual= HargaJual::where('harga_jual_id',$lineHargaJual['harga_jual_id'])->first();
                 if (!($hargajual)) {
+                    $hargajualidnew = HargaJual::max('harga_jual_id') + 1;
                     $hargajual= new HargaJual();
+                    $hargajual->harga_jual_id = $hargajualidnew;
                 }
                 $hargajual->kd_bahan = $lineHargaJual['kd_bahan'];
                 $hargajual->kd_harga = $lineHargaJual['kd_harga'];

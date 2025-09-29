@@ -45,12 +45,12 @@ class Appauth
         if ($session) {
             if ($session->curr_time>$session->expired_date){
                 UserSession::where('token',$jwt)->delete();
-                $message="token was expired, access dennied (APP-AUTH)";
+                $message="token was expired, access denied (APP-AUTH)";
             } else {
                 $allowed= true;
             }
         } else {
-            $message  = "token invalid, access dennied (APP-AUTH)";
+            $message  = "token invalid, access denied (APP-AUTH)";
         }
         if (($allowed==true) || ($this->ignored_auth==true)){
             return $next($request);

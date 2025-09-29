@@ -71,9 +71,10 @@ class BahanKlpController extends Controller
 
         $rak = BahanKlp::where('bahan_klp_id',$where['bahan_klp_id'])->first();
         if (!($rak)) {
-            $rak = new LevelBahan();
+            $bahanklpidnew = BahanKlp::max('bahan_klp_id') + 1;
+            $rak = new BahanKlp();
+            $rak->bahan_klp_id = $bahanklpidnew;
         }
-        $rak->bahan_klp_id = $rec['bahan_klp_id'];
         $rak->nama = $rec['nama'];
         $rak->save();
         $response['message'] = 'Simpan data berhasil';
