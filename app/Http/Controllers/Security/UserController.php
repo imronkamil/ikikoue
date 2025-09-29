@@ -7,12 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Config;
 use App\Models\Security\Users;
 use Pages;
 
 class UserController extends Controller
 {
     public function store_auth(Request $request) {
+
         $database=$request->input('database');
 
         // Set tenant connection dynamically
