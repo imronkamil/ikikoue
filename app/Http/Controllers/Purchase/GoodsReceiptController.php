@@ -31,16 +31,42 @@ class GoodsReceiptController extends Controller
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
         //var_dump(date($tgl1));
+        $subQ1= DB::table('t_gr2 as a')
+        ->leftJoin('t_po2 as b','b.dtl2_key','=','a.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS po_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query1= DB::table('t_po1 as a')
+        ->joinSub($subQ1,'b', function ($join) {
+            $join->on('a.doc_key','=','b.po_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_po")
+        ->groupBy('b.doc_key');
+        //->get();
+
+        $subQ2= DB::table('t_gr2 as a')
+        ->leftJoin('t_ap_invoice2 as b','a.dtl2_key','=','b.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS inv_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query2= DB::table('t_ap_invoice1 as a')
+        ->joinSub($subQ2,'b', function ($join) {
+            $join->on('a.doc_key','=','b.inv_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_inv")
+        ->groupBy('b.doc_key');
+
         $data['t_gr1']= GR1::from('t_gr1 as a')
+        ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
+        ->leftJoinSub($query2,'c','a.doc_key','=','c.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
             a.rp_rounding, a.rp_total, a.rp_uangmuka, a.rp_bayar, a.rp_sisa,
-            a.tgl_datang, a.tgl_berlaku, a.kd_buyer, a.catatan, a.catatan_jurnal, a.enum_tipe_po,
+            a.tgl_datang, a.tgl_berlaku, a.kd_buyer, a.catatan,
             a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
-            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
+            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
+            b.no_doc_po, c.no_doc_inv")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         //->orderBy($sortBy,$sorting)
@@ -265,7 +291,7 @@ class GoodsReceiptController extends Controller
 
     public static function updateLinkData($doc_key = 0) {
         //PO1
-        $list_po1= PO1::from("t_po1 as a")
+        $dataPO1= PO1::from("t_po1 as a")
         ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
         ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
         ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
@@ -273,86 +299,111 @@ class GoodsReceiptController extends Controller
         ->where("d.doc_key",$doc_key)
         ->groupBy("a.doc_key")
         ->get();
-        foreach($list_po1 as $lineTrans1) {
+        foreach($dataPO1 as $recPO1) {
             //PO2
-            $data_po2= PO2::where("doc_key",$lineTrans1->doc_key)->get();
+            $dataPO2= PO2::where("doc_key",$recPO1->doc_key)->get();
             $qty_sisa= 0;
-            foreach($data_po2 as $lineTrans2) {
-                $qty_sisa = $qty_sisa + $lineTrans2->qty_sisa;
+            foreach($dataPO2 as $recPO2) {
+                $qty_sisa = $qty_sisa + $recPO2->qty_sisa;
             }
             //PO3
-            $data_po3= PO3::where("doc_key",$lineTrans1->doc_key)->get();
+            $dataPO3= PO3::where("doc_key",$recPO1->doc_key)->get();
             $rp_sisa= 0;
-            foreach($data_po3 as $lineTrans3) {
-                $rp_sisa = $rp_sisa + $lineTrans3->rp_sisa;
+            foreach($dataPO3 as $recPO3) {
+                $rp_sisa = $rp_sisa + $recPO3->rp_sisa;
             }
             //Update PO1
-            $data_po1= PO1::where("doc_key",$lineTrans1->doc_key)->first();
-            if ($data_po1) {
+            $dataPO1= PO1::where("doc_key",$recPO1->doc_key)->first();
+            if ($dataPO1) {
                 if($qty_sisa == 0 && $rp_sisa == 0) {
-                    $data_po1->fl_tutup= TRUE;
+                    $dataPO1->fl_tutup= TRUE;
                 } else {
-                    $data_po1->fl_tutup= FALSE;
+                    $dataPO1->fl_tutup= FALSE;
                 }
-                $data_po1->save();
+                $dataPO1->save();
             }
         }
-        //var_dump($lineTrans1->doc_key,$rp_sisa);
+        //var_dump($recPO1->doc_key,$rp_sisa);
     }
 
     public static function updateStok($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
-            $list_gr= GR1::from("t_gr1 as a")
+            $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
-            ->selectRaw("a.doc_key, a.tgl_doc, b.kd_bahan, b.satuan, b.qty, b.rp_harga, a.persen_diskon, a.rp_diskon,
+            ->selectRaw("a.doc_key, a.tgl_doc, b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.rp_harga, a.persen_diskon, a.rp_diskon,
                 a.persen_diskon2, a.rp_diskon2, a.persen_diskon3, a.rp_diskon3, a.persen_diskon4, a.rp_diskon4, a.persen_pajak, a.rp_pajak
                 a.rp_harga_akhir")
             ->where("d.doc_key",$doc_key)
             ->orderBy("b.no_urut")
             ->get();
-            foreach($list_gr as $line) {
-                $stok_fifo= StokFifo::where("kd_bahan",$line->kd_bahan)
-                ->where("satuan",$line->satuan)->first();
-
-            }
-        }
-            //PO2
-            $data_po2= PO2::where("doc_key",$lineTrans1->doc_key)->get();
-            $qty_sisa= 0;
-            foreach($data_po2 as $lineTrans2) {
-                $qty_sisa = $qty_sisa + $lineTrans2->qty_sisa;
-            }
-            //PO3
-            $data_po3= PO3::where("doc_key",$lineTrans1->doc_key)->get();
-            $rp_sisa= 0;
-            foreach($data_po3 as $lineTrans3) {
-                $rp_sisa = $rp_sisa + $lineTrans3->rp_sisa;
-            }
-            //Update PO1
-            $data_po1= PO1::where("doc_key",$lineTrans1->doc_key)->first();
-            if ($data_po1) {
-                if($qty_sisa == 0 && $rp_sisa == 0) {
-                    $data_po1->fl_tutup= TRUE;
+            foreach($dataGR as $recGR) {
+                $docGR=11; //Goods Receipt
+                //FIFO Header
+                if ($insert == TRUE) {
+                    $dataStokFifo= StokFifo::where("kd_lokasi",$recGR->kd_lokasi)
+                    ->where("kd_bahan",$recGR->kd_bahan)
+                    ->where("satuan",$recGR->satuan)
+                    ->where("base_type",$docGR)
+                    ->where("base_doc_key",$recGR->doc_key)
+                    ->where("base_dtl2_key",$recGR->dtl2_key)->first();
                 } else {
-                    $data_po1->fl_tutup= FALSE;
+                    $dataStokFifo= StokFifo::where("stok_fifo_key",$recGR->stok_fifo_key)->first();
                 }
-                $data_po1->save();
+                if (!$dataStokFifo) {
+                    $dataStokFifo= new StokFifo();
+                    $dataStokFifo->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
+                    $dataStokFifo->kd_lokasi = $recGR->kd_lokasi;
+                    $dataStokFifo->kd_bahan = $recGR->kd_bahan;
+                    $dataStokFifo->satuan = $recGR->satuan;
+                    $dataStokFifo->tgl_doc = $recGR->tgl_doc;
+                    $dataStokFifo->qty_on_hand = $recGR->qty;
+                    $dataStokFifo->qty_in = $recGR->qty;
+                    $dataStokFifo->rp_harga = $recGR->rp_harga;
+                    $dataStokFifo->base_type = $docGR;
+                    $dataStokFifo->base_doc_key = $recGR->doc_key;
+                    $dataStokFifo->base_dtl2_key = $recGR->dtl2_key;
+                    $dataStokFifo->save();
+                }
+                //FIFO Detail
+                $stokFifoKey = $dataStokFifo->stok_fifo_key;
+                $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recGR->kd_lokasi)
+                    ->where("kd_bahan",$recGR->kd_bahan)
+                    ->where("satuan",$recGR->satuan)
+                    ->where("base_type",$docGR)
+                    ->where("base_doc_key",$recGR->doc_key)
+                    ->where("base_dtl2_key",$recGR->dtl2_key)->first();
+                if (!datastokfifoDtl) {
+                    $dataStokFifoDtl= new StokFifoDtl();
+                    $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
+                    $dataStokFifoDtl->stok_fifo_key = $stokFifoKey;
+                    $dataStokFifoDtl->kd_lokasi = $recGR->kd_lokasi;
+                    $dataStokFifoDtl->kd_bahan = $recGR->kd_bahan;
+                    $dataStokFifoDtl->satuan = $recGR->satuan;
+                    $dataStokFifoDtl->tgl_doc = $recGR->tgl_doc;
+                    $dataStokFifoDtl->qty = $recGR->qty;
+                    $dataStokFifoDtl->rp_harga = $recGR->rp_harga;
+                    $dataStokFifoDtl->base_type = $docGR;
+                    $dataStokFifoDtl->base_doc_key = $recGR->doc_key;
+                    $dataStokFifoDtl->base_dtl2_key = $recGR->dtl2_key;
+                    $dataStokFifoDtl->save();
+                }
             }
         }
-        //var_dump($lineTrans1->doc_key,$rp_sisa);
+        //var_dump($recPO1->doc_key,$rp_sisa);
     }
 
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
-        $recTrans1= $data['t_gr1'];
-        $recTrans2= $data['t_gr2'];
-        $recTrans3= $data['t_gr3'];
+        $dataTrans1= $data['t_gr1'];
+        $dataTrans2= $data['t_gr2'];
+        $dataTrans3= $data['t_gr3'];
 
         DB::beginTransaction();
         try {
+            $bInsert = FALSE;
             //Data Bahan
-            $validator=Validator::make($recTrans1,[
+            $validator=Validator::make($dataTrans1,[
                 'kd_partner'=>'bail|required',
             ],[
                 'kd_partner.required'=>'Kode Supplier harus diisi',
@@ -363,62 +414,63 @@ class GoodsReceiptController extends Controller
 
             $gr1= GR1::where('doc_key',$where['doc_key'])->first();
             if (!($gr1)) {
+                $bInsert = TRUE;
                 $gr1= new GR1();
                 $gr1->doc_key = DocNoController::getDocKey('doc_key');
             }
-            $gr1->no_doc         = $recTrans1['no_doc'];
-            $gr1->tgl_doc        = $recTrans1['tgl_doc'];
-            $gr1->kd_lokasi      = $recTrans1['kd_lokasi'];
-            $gr1->no_referensi   = $recTrans1['no_referensi'];
-            $gr1->lama_bayar     = $recTrans1['lama_bayar'];
-            $gr1->tgl_bayar      = $recTrans1['tgl_bayar'];
-            $gr1->kd_partner     = $recTrans1['kd_partner'];
-            $gr1->kd_kontak      = $recTrans1['kd_kontak'];
-            $gr1->rp_total_awal  = $recTrans1['rp_total_awal'];
-            $gr1->persen_diskon  = $recTrans1['persen_diskon'];
-            $gr1->rp_diskon      = $recTrans1['rp_diskon'];
-            $gr1->persen_pajak   = $recTrans1['persen_pajak'];
-            $gr1->rp_pajak       = $recTrans1['rp_pajak'];
-            $gr1->persen_biaya   = $recTrans1['persen_biaya'];
-            $gr1->rp_biaya       = $recTrans1['rp_biaya'];
-            $gr1->rp_rounding    = $recTrans1['rp_rounding'];
-            $gr1->rp_total       = $recTrans1['rp_total'];
-            $gr1->rp_uangmuka    = $recTrans1['rp_uangmuka'];
-            $gr1->rp_bayar       = $recTrans1['rp_bayar'];
-            $gr1->rp_sisa        = $recTrans1['rp_sisa'];
-            $gr1->tgl_datang     = $recTrans1['tgl_datang'];
-            $gr1->tgl_berlaku    = $recTrans1['tgl_berlaku'];
-            $gr1->kd_buyer       = $recTrans1['kd_buyer'];
-            $gr1->catatan        = $recTrans1['catatan'];
-            $gr1->catatan_jurnal = $recTrans1['catatan_jurnal'];
-            $gr1->enum_tipe_po   = $recTrans1['enum_tipe_po'];
-            $gr1->fl_rounding    = $recTrans1['fl_rounding'];
-            $gr1->fl_tutup       = $recTrans1['fl_tutup'];
-            $gr1->fl_batal       = $recTrans1['fl_batal'];
-            $gr1->fl_trds        = $recTrans1['fl_trds'];
-            //$gr1->fl_approved    = $recTrans1['fl_approved'];
-            $gr1->create_tgl     = $recTrans1['create_tgl'];
-            $gr1->create_userid  = $recTrans1['create_userid'];
-            $gr1->create_lokasi  = $recTrans1['create_lokasi'];
-            $gr1->update_tgl     = $recTrans1['update_tgl'];
-            $gr1->update_userid  = $recTrans1['update_userid'];
-            $gr1->update_lokasi  = $recTrans1['update_lokasi'];
-            $gr1->batal_tgl      = $recTrans1['batal_tgl'];
-            $gr1->batal_userid   = $recTrans1['batal_userid'];
-            $gr1->batal_lokasi   = $recTrans1['batal_lokasi'];
-            $gr1->nm_partner     = $recTrans1['nm_partner'];
-            $gr1->alamat_inv     = $recTrans1['alamat_inv'];
-            $gr1->telp_inv       = $recTrans1['telp_inv'];
-            $gr1->nm_kontak      = $recTrans1['nm_kontak'];
-            $gr1->cetak          = $recTrans1['cetak'];
-            $gr1->nm_kirim       = $recTrans1['nm_kirim'];
-            $gr1->alamat_kirim   = $recTrans1['alamat_kirim'];
+            $gr1->no_doc         = $dataTrans1['no_doc'];
+            $gr1->tgl_doc        = $dataTrans1['tgl_doc'];
+            $gr1->kd_lokasi      = $dataTrans1['kd_lokasi'];
+            $gr1->no_referensi   = $dataTrans1['no_referensi'];
+            $gr1->lama_bayar     = $dataTrans1['lama_bayar'];
+            $gr1->tgl_bayar      = $dataTrans1['tgl_bayar'];
+            $gr1->kd_partner     = $dataTrans1['kd_partner'];
+            $gr1->kd_kontak      = $dataTrans1['kd_kontak'];
+            $gr1->rp_total_awal  = $dataTrans1['rp_total_awal'];
+            $gr1->persen_diskon  = $dataTrans1['persen_diskon'];
+            $gr1->rp_diskon      = $dataTrans1['rp_diskon'];
+            $gr1->persen_pajak   = $dataTrans1['persen_pajak'];
+            $gr1->rp_pajak       = $dataTrans1['rp_pajak'];
+            $gr1->persen_biaya   = $dataTrans1['persen_biaya'];
+            $gr1->rp_biaya       = $dataTrans1['rp_biaya'];
+            $gr1->rp_rounding    = $dataTrans1['rp_rounding'];
+            $gr1->rp_total       = $dataTrans1['rp_total'];
+            $gr1->rp_uangmuka    = $dataTrans1['rp_uangmuka'];
+            $gr1->rp_bayar       = $dataTrans1['rp_bayar'];
+            $gr1->rp_sisa        = $dataTrans1['rp_sisa'];
+            $gr1->tgl_datang     = $dataTrans1['tgl_datang'];
+            $gr1->tgl_berlaku    = $dataTrans1['tgl_berlaku'];
+            $gr1->kd_buyer       = $dataTrans1['kd_buyer'];
+            $gr1->catatan        = $dataTrans1['catatan'];
+            $gr1->catatan_jurnal = $dataTrans1['catatan_jurnal'];
+            $gr1->enum_tipe_po   = $dataTrans1['enum_tipe_po'];
+            $gr1->fl_rounding    = $dataTrans1['fl_rounding'];
+            $gr1->fl_tutup       = $dataTrans1['fl_tutup'];
+            $gr1->fl_batal       = $dataTrans1['fl_batal'];
+            $gr1->fl_trds        = $dataTrans1['fl_trds'];
+            //$gr1->fl_approved    = $dataTrans1['fl_approved'];
+            $gr1->create_tgl     = $dataTrans1['create_tgl'];
+            $gr1->create_userid  = $dataTrans1['create_userid'];
+            $gr1->create_lokasi  = $dataTrans1['create_lokasi'];
+            $gr1->update_tgl     = $dataTrans1['update_tgl'];
+            $gr1->update_userid  = $dataTrans1['update_userid'];
+            $gr1->update_lokasi  = $dataTrans1['update_lokasi'];
+            $gr1->batal_tgl      = $dataTrans1['batal_tgl'];
+            $gr1->batal_userid   = $dataTrans1['batal_userid'];
+            $gr1->batal_lokasi   = $dataTrans1['batal_lokasi'];
+            $gr1->nm_partner     = $dataTrans1['nm_partner'];
+            $gr1->alamat_inv     = $dataTrans1['alamat_inv'];
+            $gr1->telp_inv       = $dataTrans1['telp_inv'];
+            $gr1->nm_kontak      = $dataTrans1['nm_kontak'];
+            $gr1->cetak          = $dataTrans1['cetak'];
+            $gr1->nm_kirim       = $dataTrans1['nm_kirim'];
+            $gr1->alamat_kirim   = $dataTrans1['alamat_kirim'];
             $gr1->save();
 
             //Data GR2
             //GR2::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans2 as $lineTrans2) {
-                $validator=Validator::make($lineTrans2,[
+            foreach($dataTrans2 as $recPO2) {
+                $validator=Validator::make($recPO2,[
                     'kd_bahan'=>'bail|required',
                     'satuan'=>'bail|required',
                 ],[
@@ -431,48 +483,48 @@ class GoodsReceiptController extends Controller
                 }
 
                 //Update PO2
-                $po2 = PO2::where('dtl2_key',$lineTrans2['base_ref'])->first();
+                $po2 = PO2::where('dtl2_key',$recPO2['base_ref'])->first();
                 if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa - $lineTrans2['qty'];
+                    $po2->qty_sisa = $po2->qty_sisa - $recPO2['qty'];
                     $po2->save();
                 }
 
-                $gr2 = GR2::where('dtl2_key',$lineTrans2['dtl2_key'])->first();
+                $gr2 = GR2::where('dtl2_key',$recPO2['dtl2_key'])->first();
                 if (!($gr2)) {
                     $gr2 = new GR2();
                     $gr2->dtl2_key = DocNoController::getDocKey('doc_key');
                 }
                 $gr2->doc_key        = $gr1->doc_key;
-                $gr2->no_urut        = $lineTrans2['no_urut'];
-                $gr2->kd_bahan       = $lineTrans2['kd_bahan'];
-                $gr2->satuan         = $lineTrans2['satuan'];
-                $gr2->qty            = $lineTrans2['qty'];
-                $gr2->rp_harga       = $lineTrans2['rp_harga'];
-                $gr2->persen_diskon  = $lineTrans2['persen_diskon'];
-                $gr2->rp_diskon      = $lineTrans2['rp_diskon'];
-                $gr2->persen_diskon2 = $lineTrans2['persen_diskon2'];
-                $gr2->rp_diskon2     = $lineTrans2['rp_diskon2'];
-                $gr2->persen_diskon3 = $lineTrans2['persen_diskon3'];
-                $gr2->rp_diskon3     = $lineTrans2['rp_diskon3'];
-                $gr2->persen_diskon4 = $lineTrans2['persen_diskon4'];
-                $gr2->rp_diskon4     = $lineTrans2['rp_diskon4'];
-                $gr2->kd_pajak       = $lineTrans2['kd_pajak'];
-                $gr2->persen_pajak   = $lineTrans2['persen_pajak'];
-                $gr2->rp_pajak       = $lineTrans2['rp_pajak'];
-                $gr2->rp_harga_akhir = $lineTrans2['rp_harga_akhir'];
-                $gr2->qty_sisa       = $lineTrans2['qty_sisa'];
-                $gr2->catatan        = $lineTrans2['catatan'];
-                $gr2->fl_tutup       = $lineTrans2['fl_tutup'];
-                $gr2->base_type      = $lineTrans2['base_type'];
-                $gr2->base_ref       = $lineTrans2['base_ref'];
-                $gr2->base_no_doc    = $lineTrans2['base_no_doc'];
+                $gr2->no_urut        = $recPO2['no_urut'];
+                $gr2->kd_bahan       = $recPO2['kd_bahan'];
+                $gr2->satuan         = $recPO2['satuan'];
+                $gr2->qty            = $recPO2['qty'];
+                $gr2->rp_harga       = $recPO2['rp_harga'];
+                $gr2->persen_diskon  = $recPO2['persen_diskon'];
+                $gr2->rp_diskon      = $recPO2['rp_diskon'];
+                $gr2->persen_diskon2 = $recPO2['persen_diskon2'];
+                $gr2->rp_diskon2     = $recPO2['rp_diskon2'];
+                $gr2->persen_diskon3 = $recPO2['persen_diskon3'];
+                $gr2->rp_diskon3     = $recPO2['rp_diskon3'];
+                $gr2->persen_diskon4 = $recPO2['persen_diskon4'];
+                $gr2->rp_diskon4     = $recPO2['rp_diskon4'];
+                $gr2->kd_pajak       = $recPO2['kd_pajak'];
+                $gr2->persen_pajak   = $recPO2['persen_pajak'];
+                $gr2->rp_pajak       = $recPO2['rp_pajak'];
+                $gr2->rp_harga_akhir = $recPO2['rp_harga_akhir'];
+                $gr2->qty_sisa       = $recPO2['qty_sisa'];
+                $gr2->catatan        = $recPO2['catatan'];
+                $gr2->fl_tutup       = $recPO2['fl_tutup'];
+                $gr2->base_type      = $recPO2['base_type'];
+                $gr2->base_ref       = $recPO2['base_ref'];
+                $gr2->base_no_doc    = $recPO2['base_no_doc'];
                 $gr2->save();
             }
 
             //Data GR3
             //GR3::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans3 as $lineTrans3) {
-                $validator=Validator::make($lineTrans3,[
+            foreach($dataTrans3 as $recPO3) {
+                $validator=Validator::make($recPO3,[
                     'no_account'=>'bail|required',
                 ],[
                     'no_account.required'=>'No Account harus diisi',
@@ -483,30 +535,31 @@ class GoodsReceiptController extends Controller
                 }
 
                 //Update PO3
-                $po3 = PO3::where('dtl3_key',$lineTrans3['base_ref'])->first();
+                $po3 = PO3::where('dtl3_key',$recPO3['base_ref'])->first();
                 if ($po3) {
-                    $po3->rp_sisa = $po3->rp_sisa - $lineTrans3['rp_bayar'];
+                    $po3->rp_sisa = $po3->rp_sisa - $recPO3['rp_bayar'];
                     $po3->save();
                 }
 
-                $gr3 = GR3::where('dtl3_key',$lineTrans3['dtl3_key'])->first();
+                $gr3 = GR3::where('dtl3_key',$recPO3['dtl3_key'])->first();
                 if (!($gr3)) {
                     $gr3 = new PO3();
                     $gr3->dtl3_key = DocNoController::getDocKey('dtl3_key');
                 }
                 $gr3->doc_key        = $gr1->doc_key;
-                $gr3->no_urut        = $lineTrans3['no_urut'];
-                $gr3->no_account     = $lineTrans3['no_account'];
-                $gr3->nm_account     = $lineTrans3['nm_account'];
-                $gr3->catatan        = $lineTrans3['catatan'];
-                $gr3->rp_bayar       = $lineTrans3['rp_bayar'];
-                $gr3->rp_sisa        = $lineTrans3['rp_sisa'];
-                $gr3->base_type      = $lineTrans3['base_type'];
-                $gr3->base_ref       = $lineTrans3['base_ref'];
+                $gr3->no_urut        = $recPO3['no_urut'];
+                $gr3->no_account     = $recPO3['no_account'];
+                $gr3->nm_account     = $recPO3['nm_account'];
+                $gr3->catatan        = $recPO3['catatan'];
+                $gr3->rp_bayar       = $recPO3['rp_bayar'];
+                $gr3->rp_sisa        = $recPO3['rp_sisa'];
+                $gr3->base_type      = $recPO3['base_type'];
+                $gr3->base_ref       = $recPO3['base_ref'];
                 $gr3->save();
             }
 
             GoodsReceiptController::updateLinkData($gr1->doc_key);
+            GoodsReceiptController::updateStok($gr1->doc_key, $bInsert);
 
             DB::commit();
             $response['message'] = 'Simpan data berhasil';

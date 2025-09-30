@@ -26,7 +26,20 @@ class PurchaseRequestController extends Controller
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
         //var_dump(date($tgl1));
+        $subQ1= DB::table('t_pr2 as a')
+        ->leftJoin('t_po2 as b','a.dtl2_key','=','b.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS po_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query1= DB::table('t_po1 as a')
+        ->joinSub($subQ1,'b', function ($join) {
+            $join->on('a.doc_key','=','b.po_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_po")
+        ->groupBy('b.doc_key');
+        //->get();
+
         $data['t_pr1']= PR1::from('t_pr1 as a')
+        ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
@@ -36,6 +49,7 @@ class PurchaseRequestController extends Controller
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
+            b.no_doc_po,
             CASE WHEN a.enum_tipe_po='0' THEN 'Aktif'
                  WHEN a.enum_tipe_po='1' THEN 'Closed'
                  WHEN a.enum_tipe_po='2' THEN 'Sebagian'
@@ -203,14 +217,14 @@ class PurchaseRequestController extends Controller
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
-        $recTrans1= $data['t_pr1'];
-        $recTrans2= $data['t_pr2'];
-        $recTrans3= $data['t_pr3'];
+        $dataTrans1= $data['t_pr1'];
+        $dataTrans2= $data['t_pr2'];
+        $dataTrans3= $data['t_pr3'];
 
         DB::beginTransaction();
         try {
             //Data Bahan
-            $validator=Validator::make($recTrans1,[
+            $validator=Validator::make($dataTrans1,[
                 'kd_partner'=>'bail|required',
             ],[
                 'kd_partner.required'=>'Kode Supplier harus diisi',
@@ -224,59 +238,59 @@ class PurchaseRequestController extends Controller
                 $pr1= new PR1();
                 $pr1->doc_key = DocNoController::getDocKey('doc_key');
             }
-            $pr1->no_doc         = $recTrans1['no_doc'];
-            $pr1->tgl_doc        = $recTrans1['tgl_doc'];
-            $pr1->kd_lokasi      = $recTrans1['kd_lokasi'];
-            $pr1->no_referensi   = $recTrans1['no_referensi'];
-            $pr1->lama_bayar     = $recTrans1['lama_bayar'];
-            $pr1->tgl_bayar      = $recTrans1['tgl_bayar'];
-            $pr1->kd_partner     = $recTrans1['kd_partner'];
-            $pr1->kd_kontak      = $recTrans1['kd_kontak'];
-            $pr1->rp_total_awal  = $recTrans1['rp_total_awal'];
-            $pr1->persen_diskon  = $recTrans1['persen_diskon'];
-            $pr1->rp_diskon      = $recTrans1['rp_diskon'];
-            $pr1->persen_pajak   = $recTrans1['persen_pajak'];
-            $pr1->rp_pajak       = $recTrans1['rp_pajak'];
-            $pr1->persen_biaya   = $recTrans1['persen_biaya'];
-            $pr1->rp_biaya       = $recTrans1['rp_biaya'];
-            $pr1->rp_rounding    = $recTrans1['rp_rounding'];
-            $pr1->rp_total       = $recTrans1['rp_total'];
-            $pr1->rp_uangmuka    = $recTrans1['rp_uangmuka'];
-            $pr1->rp_bayar       = $recTrans1['rp_bayar'];
-            $pr1->rp_sisa        = $recTrans1['rp_sisa'];
-            $pr1->tgl_datang     = $recTrans1['tgl_datang'];
-            $pr1->tgl_berlaku    = $recTrans1['tgl_berlaku'];
-            $pr1->kd_buyer       = $recTrans1['kd_buyer'];
-            $pr1->catatan        = $recTrans1['catatan'];
-            $pr1->catatan_jurnal = $recTrans1['catatan_jurnal'];
-            $pr1->enum_tipe_po   = $recTrans1['enum_tipe_po'];
-            $pr1->fl_rounding    = $recTrans1['fl_rounding'];
-            $pr1->fl_tutup       = $recTrans1['fl_tutup'];
-            $pr1->fl_batal       = $recTrans1['fl_batal'];
-            $pr1->fl_trds        = $recTrans1['fl_trds'];
-            $pr1->fl_approved    = $recTrans1['fl_approved'];
-            $pr1->create_tgl     = $recTrans1['create_tgl'];
-            $pr1->create_userid  = $recTrans1['create_userid'];
-            $pr1->create_lokasi  = $recTrans1['create_lokasi'];
-            $pr1->update_tgl     = $recTrans1['update_tgl'];
-            $pr1->update_userid  = $recTrans1['update_userid'];
-            $pr1->update_lokasi  = $recTrans1['update_lokasi'];
-            $pr1->batal_tgl      = $recTrans1['batal_tgl'];
-            $pr1->batal_userid   = $recTrans1['batal_userid'];
-            $pr1->batal_lokasi   = $recTrans1['batal_lokasi'];
-            $pr1->nm_partner     = $recTrans1['nm_partner'];
-            $pr1->alamat_inv     = $recTrans1['alamat_inv'];
-            $pr1->telp_inv       = $recTrans1['telp_inv'];
-            $pr1->nm_kontak      = $recTrans1['nm_kontak'];
-            $pr1->cetak          = $recTrans1['cetak'];
-            $pr1->nm_kirim       = $recTrans1['nm_kirim'];
-            $pr1->alamat_kirim   = $recTrans1['alamat_kirim'];
+            $pr1->no_doc         = $dataTrans1['no_doc'];
+            $pr1->tgl_doc        = $dataTrans1['tgl_doc'];
+            $pr1->kd_lokasi      = $dataTrans1['kd_lokasi'];
+            $pr1->no_referensi   = $dataTrans1['no_referensi'];
+            $pr1->lama_bayar     = $dataTrans1['lama_bayar'];
+            $pr1->tgl_bayar      = $dataTrans1['tgl_bayar'];
+            $pr1->kd_partner     = $dataTrans1['kd_partner'];
+            $pr1->kd_kontak      = $dataTrans1['kd_kontak'];
+            $pr1->rp_total_awal  = $dataTrans1['rp_total_awal'];
+            $pr1->persen_diskon  = $dataTrans1['persen_diskon'];
+            $pr1->rp_diskon      = $dataTrans1['rp_diskon'];
+            $pr1->persen_pajak   = $dataTrans1['persen_pajak'];
+            $pr1->rp_pajak       = $dataTrans1['rp_pajak'];
+            $pr1->persen_biaya   = $dataTrans1['persen_biaya'];
+            $pr1->rp_biaya       = $dataTrans1['rp_biaya'];
+            $pr1->rp_rounding    = $dataTrans1['rp_rounding'];
+            $pr1->rp_total       = $dataTrans1['rp_total'];
+            $pr1->rp_uangmuka    = $dataTrans1['rp_uangmuka'];
+            $pr1->rp_bayar       = $dataTrans1['rp_bayar'];
+            $pr1->rp_sisa        = $dataTrans1['rp_sisa'];
+            $pr1->tgl_datang     = $dataTrans1['tgl_datang'];
+            $pr1->tgl_berlaku    = $dataTrans1['tgl_berlaku'];
+            $pr1->kd_buyer       = $dataTrans1['kd_buyer'];
+            $pr1->catatan        = $dataTrans1['catatan'];
+            $pr1->catatan_jurnal = $dataTrans1['catatan_jurnal'];
+            $pr1->enum_tipe_po   = $dataTrans1['enum_tipe_po'];
+            $pr1->fl_rounding    = $dataTrans1['fl_rounding'];
+            $pr1->fl_tutup       = $dataTrans1['fl_tutup'];
+            $pr1->fl_batal       = $dataTrans1['fl_batal'];
+            $pr1->fl_trds        = $dataTrans1['fl_trds'];
+            $pr1->fl_approved    = $dataTrans1['fl_approved'];
+            $pr1->create_tgl     = $dataTrans1['create_tgl'];
+            $pr1->create_userid  = $dataTrans1['create_userid'];
+            $pr1->create_lokasi  = $dataTrans1['create_lokasi'];
+            $pr1->update_tgl     = $dataTrans1['update_tgl'];
+            $pr1->update_userid  = $dataTrans1['update_userid'];
+            $pr1->update_lokasi  = $dataTrans1['update_lokasi'];
+            $pr1->batal_tgl      = $dataTrans1['batal_tgl'];
+            $pr1->batal_userid   = $dataTrans1['batal_userid'];
+            $pr1->batal_lokasi   = $dataTrans1['batal_lokasi'];
+            $pr1->nm_partner     = $dataTrans1['nm_partner'];
+            $pr1->alamat_inv     = $dataTrans1['alamat_inv'];
+            $pr1->telp_inv       = $dataTrans1['telp_inv'];
+            $pr1->nm_kontak      = $dataTrans1['nm_kontak'];
+            $pr1->cetak          = $dataTrans1['cetak'];
+            $pr1->nm_kirim       = $dataTrans1['nm_kirim'];
+            $pr1->alamat_kirim   = $dataTrans1['alamat_kirim'];
             $pr1->save();
 
             //Data PR2
             PR2::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans2 as $lineTrans2) {
-                $validator=Validator::make($lineTrans2,[
+            foreach($dataTrans2 as $recTrans2) {
+                $validator=Validator::make($recTrans2,[
                     'kd_bahan'=>'bail|required',
                     'satuan'=>'bail|required',
                 ],[
@@ -288,41 +302,41 @@ class PurchaseRequestController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
-                $pr2 = PR2::where('dtl2_key',$lineTrans2['dtl2_key'])->first();
+                $pr2 = PR2::where('dtl2_key',$recTrans2['dtl2_key'])->first();
                 if (!($pr2)) {
                     $pr2 = new PR2();
                     $pr2->dtl2_key = DocNoController::getDocKey('doc_key');
                 }
                 $pr2->doc_key        = $pr1->doc_key;
-                $pr2->no_urut        = $lineTrans2['no_urut'];
-                $pr2->kd_bahan       = $lineTrans2['kd_bahan'];
-                $pr2->satuan         = $lineTrans2['satuan'];
-                $pr2->qty            = $lineTrans2['qty'];
-                $pr2->rp_harga       = $lineTrans2['rp_harga'];
-                $pr2->persen_diskon  = $lineTrans2['persen_diskon'];
-                $pr2->rp_diskon      = $lineTrans2['rp_diskon'];
-                $pr2->persen_diskon2 = $lineTrans2['persen_diskon2'];
-                $pr2->rp_diskon2     = $lineTrans2['rp_diskon2'];
-                $pr2->persen_diskon3 = $lineTrans2['persen_diskon3'];
-                $pr2->rp_diskon3     = $lineTrans2['rp_diskon3'];
-                $pr2->persen_diskon4 = $lineTrans2['persen_diskon4'];
-                $pr2->rp_diskon4     = $lineTrans2['rp_diskon4'];
-                $pr2->kd_pajak       = $lineTrans2['kd_pajak'];
-                $pr2->persen_pajak   = $lineTrans2['persen_pajak'];
-                $pr2->rp_pajak       = $lineTrans2['rp_pajak'];
-                $pr2->rp_harga_akhir = $lineTrans2['rp_harga_akhir'];
-                $pr2->qty_sisa       = $lineTrans2['qty_sisa'];
-                $pr2->catatan        = $lineTrans2['catatan'];
-                $pr2->fl_tutup       = $lineTrans2['fl_tutup'];
-                $pr2->base_type      = $lineTrans2['base_type'];
-                $pr2->base_ref       = $lineTrans2['base_ref'];
+                $pr2->no_urut        = $recTrans2['no_urut'];
+                $pr2->kd_bahan       = $recTrans2['kd_bahan'];
+                $pr2->satuan         = $recTrans2['satuan'];
+                $pr2->qty            = $recTrans2['qty'];
+                $pr2->rp_harga       = $recTrans2['rp_harga'];
+                $pr2->persen_diskon  = $recTrans2['persen_diskon'];
+                $pr2->rp_diskon      = $recTrans2['rp_diskon'];
+                $pr2->persen_diskon2 = $recTrans2['persen_diskon2'];
+                $pr2->rp_diskon2     = $recTrans2['rp_diskon2'];
+                $pr2->persen_diskon3 = $recTrans2['persen_diskon3'];
+                $pr2->rp_diskon3     = $recTrans2['rp_diskon3'];
+                $pr2->persen_diskon4 = $recTrans2['persen_diskon4'];
+                $pr2->rp_diskon4     = $recTrans2['rp_diskon4'];
+                $pr2->kd_pajak       = $recTrans2['kd_pajak'];
+                $pr2->persen_pajak   = $recTrans2['persen_pajak'];
+                $pr2->rp_pajak       = $recTrans2['rp_pajak'];
+                $pr2->rp_harga_akhir = $recTrans2['rp_harga_akhir'];
+                $pr2->qty_sisa       = $recTrans2['qty_sisa'];
+                $pr2->catatan        = $recTrans2['catatan'];
+                $pr2->fl_tutup       = $recTrans2['fl_tutup'];
+                $pr2->base_type      = $recTrans2['base_type'];
+                $pr2->base_ref       = $recTrans2['base_ref'];
                 $pr2->save();
             }
 
             //Data PR3
             PR3::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans3 as $lineTrans3) {
-                $validator=Validator::make($lineTrans3,[
+            foreach($dataTrans3 as $recTrans3) {
+                $validator=Validator::make($recTrans3,[
                     'no_account'=>'bail|required',
                 ],[
                     'no_account.required'=>'No Account harus diisi',
@@ -332,20 +346,20 @@ class PurchaseRequestController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
-                $pr3 = PR3::where('dtl3_key',$lineTrans3['dtl3_key'])->first();
+                $pr3 = PR3::where('dtl3_key',$recTrans3['dtl3_key'])->first();
                 if (!($pr3)) {
                     $pr3 = new PR3();
                     $pr3->dtl3_key = DocNoController::getDocKey('dtl3_key');
                 }
                 $pr3->doc_key        = $pr1->doc_key;
-                $pr3->no_urut        = $lineTrans3['no_urut'];
-                $pr3->no_account     = $lineTrans3['no_account'];
-                $pr3->nm_account     = $lineTrans3['nm_account'];
-                $pr3->catatan        = $lineTrans3['catatan'];
-                $pr3->rp_bayar       = $lineTrans3['rp_bayar'];
-                $pr3->rp_sisa        = $lineTrans3['rp_sisa'];
-                $pr3->base_type      = $lineTrans3['base_type'];
-                $pr3->base_ref       = $lineTrans3['base_ref'];
+                $pr3->no_urut        = $recTrans3['no_urut'];
+                $pr3->no_account     = $recTrans3['no_account'];
+                $pr3->nm_account     = $recTrans3['nm_account'];
+                $pr3->catatan        = $recTrans3['catatan'];
+                $pr3->rp_bayar       = $recTrans3['rp_bayar'];
+                $pr3->rp_sisa        = $recTrans3['rp_sisa'];
+                $pr3->base_type      = $recTrans3['base_type'];
+                $pr3->base_ref       = $recTrans3['base_ref'];
                 $pr3->save();
             }
 

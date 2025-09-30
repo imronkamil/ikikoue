@@ -29,7 +29,32 @@ class PurchaseOrderController extends Controller
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
         //var_dump(date($tgl1));
+        $subQ1= DB::table('t_po2 as a')
+        ->leftJoin('t_pr2 as b','b.dtl2_key','=','a.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS pr_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query1= DB::table('t_pr1 as a')
+        ->joinSub($subQ1,'b', function ($join) {
+            $join->on('a.doc_key','=','b.pr_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_pr")
+        ->groupBy('b.doc_key');
+        //->get();
+
+        $subQ2= DB::table('t_po2 as a')
+        ->leftJoin('t_gr2 as b','a.dtl2_key','=','b.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS gr_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query2= DB::table('t_gr1 as a')
+        ->joinSub($subQ2,'b', function ($join) {
+            $join->on('a.doc_key','=','b.gr_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_gr")
+        ->groupBy('b.doc_key');
+
         $data['t_po1']= PO1::from('t_po1 as a')
+        ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
+        ->leftJoinSub($query2,'c','a.doc_key','=','c.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
@@ -38,7 +63,8 @@ class PurchaseOrderController extends Controller
             a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
-            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
+            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
+            b.no_doc_pr, c.no_doc_gr")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         //->orderBy($sortBy,$sorting)
@@ -46,6 +72,7 @@ class PurchaseOrderController extends Controller
         ->orderBy('no_doc','desc')
         ->get();
         return response()->success('Success',$data);
+        //return response()->success('Success',$query1);
     }
 
     public function show2() {
@@ -273,21 +300,21 @@ class PurchaseOrderController extends Controller
         ->where("d.doc_key",$doc_key)
         ->groupBy("a.doc_key")
         ->get();
-        foreach($list_pr1 as $lineTrans1) {
+        foreach($list_pr1 as $recTrans1) {
             //PR2
-            $data_pr2= PR2::where("doc_key",$lineTrans1->doc_key)->get();
+            $data_pr2= PR2::where("doc_key",$recTrans1->doc_key)->get();
             $qty_sisa= 0;
-            foreach($data_pr2 as $lineTrans2) {
-                $qty_sisa = $qty_sisa + $lineTrans2->qty_sisa;
+            foreach($data_pr2 as $recTrans2) {
+                $qty_sisa = $qty_sisa + $recTrans2->qty_sisa;
             }
             //PR3
-            $data_pr3= PR3::where("doc_key",$lineTrans1->doc_key)->get();
+            $data_pr3= PR3::where("doc_key",$recTrans1->doc_key)->get();
             $rp_sisa= 0;
-            foreach($data_pr3 as $lineTrans3) {
-                $rp_sisa = $rp_sisa + $lineTrans3->rp_sisa;
+            foreach($data_pr3 as $recTrans3) {
+                $rp_sisa = $rp_sisa + $recTrans3->rp_sisa;
             }
             //Update PR1
-            $data_pr1= PR1::where("doc_key",$lineTrans1->doc_key)->first();
+            $data_pr1= PR1::where("doc_key",$recTrans1->doc_key)->first();
             if ($data_pr1) {
                 if($qty_sisa == 0 && $rp_sisa == 0) {
                     $data_pr1->fl_tutup= TRUE;
@@ -297,20 +324,20 @@ class PurchaseOrderController extends Controller
                 $data_pr1->save();
             }
         }
-        //var_dump($lineTrans1->doc_key,$rp_sisa);
+        //var_dump($recTrans1->doc_key,$rp_sisa);
     }
 
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
-        $recTrans1= $data['t_po1'];
-        $recTrans2= $data['t_po2'];
-        $recTrans3= $data['t_po3'];
+        $dataTrans1= $data['t_po1'];
+        $dataTrans2= $data['t_po2'];
+        $dataTrans3= $data['t_po3'];
 
         DB::beginTransaction();
         try {
             //Data Bahan
-            $validator=Validator::make($recTrans1,[
+            $validator=Validator::make($dataTrans1,[
                 'kd_partner'=>'bail|required',
             ],[
                 'kd_partner.required'=>'Kode Supplier harus diisi',
@@ -324,59 +351,59 @@ class PurchaseOrderController extends Controller
                 $po1= new PO1();
                 $po1->doc_key = DocNoController::getDocKey('doc_key');
             }
-            $po1->no_doc         = $recTrans1['no_doc'];
-            $po1->tgl_doc        = $recTrans1['tgl_doc'];
-            $po1->kd_lokasi      = $recTrans1['kd_lokasi'];
-            $po1->no_referensi   = $recTrans1['no_referensi'];
-            $po1->lama_bayar     = $recTrans1['lama_bayar'];
-            $po1->tgl_bayar      = $recTrans1['tgl_bayar'];
-            $po1->kd_partner     = $recTrans1['kd_partner'];
-            $po1->kd_kontak      = $recTrans1['kd_kontak'];
-            $po1->rp_total_awal  = $recTrans1['rp_total_awal'];
-            $po1->persen_diskon  = $recTrans1['persen_diskon'];
-            $po1->rp_diskon      = $recTrans1['rp_diskon'];
-            $po1->persen_pajak   = $recTrans1['persen_pajak'];
-            $po1->rp_pajak       = $recTrans1['rp_pajak'];
-            $po1->persen_biaya   = $recTrans1['persen_biaya'];
-            $po1->rp_biaya       = $recTrans1['rp_biaya'];
-            $po1->rp_rounding    = $recTrans1['rp_rounding'];
-            $po1->rp_total       = $recTrans1['rp_total'];
-            $po1->rp_uangmuka    = $recTrans1['rp_uangmuka'];
-            $po1->rp_bayar       = $recTrans1['rp_bayar'];
-            $po1->rp_sisa        = $recTrans1['rp_sisa'];
-            $po1->tgl_datang     = $recTrans1['tgl_datang'];
-            $po1->tgl_berlaku    = $recTrans1['tgl_berlaku'];
-            $po1->kd_buyer       = $recTrans1['kd_buyer'];
-            $po1->catatan        = $recTrans1['catatan'];
-            $po1->catatan_jurnal = $recTrans1['catatan_jurnal'];
-            $po1->enum_tipe_po   = $recTrans1['enum_tipe_po'];
-            $po1->fl_rounding    = $recTrans1['fl_rounding'];
-            $po1->fl_tutup       = $recTrans1['fl_tutup'];
-            $po1->fl_batal       = $recTrans1['fl_batal'];
-            $po1->fl_trds        = $recTrans1['fl_trds'];
-            //$po1->fl_approved    = $recTrans1['fl_approved'];
-            $po1->create_tgl     = $recTrans1['create_tgl'];
-            $po1->create_userid  = $recTrans1['create_userid'];
-            $po1->create_lokasi  = $recTrans1['create_lokasi'];
-            $po1->update_tgl     = $recTrans1['update_tgl'];
-            $po1->update_userid  = $recTrans1['update_userid'];
-            $po1->update_lokasi  = $recTrans1['update_lokasi'];
-            $po1->batal_tgl      = $recTrans1['batal_tgl'];
-            $po1->batal_userid   = $recTrans1['batal_userid'];
-            $po1->batal_lokasi   = $recTrans1['batal_lokasi'];
-            $po1->nm_partner     = $recTrans1['nm_partner'];
-            $po1->alamat_inv     = $recTrans1['alamat_inv'];
-            $po1->telp_inv       = $recTrans1['telp_inv'];
-            $po1->nm_kontak      = $recTrans1['nm_kontak'];
-            $po1->cetak          = $recTrans1['cetak'];
-            $po1->nm_kirim       = $recTrans1['nm_kirim'];
-            $po1->alamat_kirim   = $recTrans1['alamat_kirim'];
+            $po1->no_doc         = $dataTrans1['no_doc'];
+            $po1->tgl_doc        = $dataTrans1['tgl_doc'];
+            $po1->kd_lokasi      = $dataTrans1['kd_lokasi'];
+            $po1->no_referensi   = $dataTrans1['no_referensi'];
+            $po1->lama_bayar     = $dataTrans1['lama_bayar'];
+            $po1->tgl_bayar      = $dataTrans1['tgl_bayar'];
+            $po1->kd_partner     = $dataTrans1['kd_partner'];
+            $po1->kd_kontak      = $dataTrans1['kd_kontak'];
+            $po1->rp_total_awal  = $dataTrans1['rp_total_awal'];
+            $po1->persen_diskon  = $dataTrans1['persen_diskon'];
+            $po1->rp_diskon      = $dataTrans1['rp_diskon'];
+            $po1->persen_pajak   = $dataTrans1['persen_pajak'];
+            $po1->rp_pajak       = $dataTrans1['rp_pajak'];
+            $po1->persen_biaya   = $dataTrans1['persen_biaya'];
+            $po1->rp_biaya       = $dataTrans1['rp_biaya'];
+            $po1->rp_rounding    = $dataTrans1['rp_rounding'];
+            $po1->rp_total       = $dataTrans1['rp_total'];
+            $po1->rp_uangmuka    = $dataTrans1['rp_uangmuka'];
+            $po1->rp_bayar       = $dataTrans1['rp_bayar'];
+            $po1->rp_sisa        = $dataTrans1['rp_sisa'];
+            $po1->tgl_datang     = $dataTrans1['tgl_datang'];
+            $po1->tgl_berlaku    = $dataTrans1['tgl_berlaku'];
+            $po1->kd_buyer       = $dataTrans1['kd_buyer'];
+            $po1->catatan        = $dataTrans1['catatan'];
+            $po1->catatan_jurnal = $dataTrans1['catatan_jurnal'];
+            $po1->enum_tipe_po   = $dataTrans1['enum_tipe_po'];
+            $po1->fl_rounding    = $dataTrans1['fl_rounding'];
+            $po1->fl_tutup       = $dataTrans1['fl_tutup'];
+            $po1->fl_batal       = $dataTrans1['fl_batal'];
+            $po1->fl_trds        = $dataTrans1['fl_trds'];
+            //$po1->fl_approved    = $dataTrans1['fl_approved'];
+            $po1->create_tgl     = $dataTrans1['create_tgl'];
+            $po1->create_userid  = $dataTrans1['create_userid'];
+            $po1->create_lokasi  = $dataTrans1['create_lokasi'];
+            $po1->update_tgl     = $dataTrans1['update_tgl'];
+            $po1->update_userid  = $dataTrans1['update_userid'];
+            $po1->update_lokasi  = $dataTrans1['update_lokasi'];
+            $po1->batal_tgl      = $dataTrans1['batal_tgl'];
+            $po1->batal_userid   = $dataTrans1['batal_userid'];
+            $po1->batal_lokasi   = $dataTrans1['batal_lokasi'];
+            $po1->nm_partner     = $dataTrans1['nm_partner'];
+            $po1->alamat_inv     = $dataTrans1['alamat_inv'];
+            $po1->telp_inv       = $dataTrans1['telp_inv'];
+            $po1->nm_kontak      = $dataTrans1['nm_kontak'];
+            $po1->cetak          = $dataTrans1['cetak'];
+            $po1->nm_kirim       = $dataTrans1['nm_kirim'];
+            $po1->alamat_kirim   = $dataTrans1['alamat_kirim'];
             $po1->save();
 
             //Data PO2
             //PO2::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans2 as $lineTrans2) {
-                $validator=Validator::make($lineTrans2,[
+            foreach($dataTrans2 as $recTrans2) {
+                $validator=Validator::make($recTrans2,[
                     'kd_bahan'=>'bail|required',
                     'satuan'=>'bail|required',
                 ],[
@@ -389,48 +416,48 @@ class PurchaseOrderController extends Controller
                 }
 
                 //Update PR2
-                $pr2 = PR2::where('dtl2_key',$lineTrans2['base_ref'])->first();
+                $pr2 = PR2::where('dtl2_key',$recTrans2['base_ref'])->first();
                 if ($pr2) {
-                    $pr2->qty_sisa = $pr2->qty_sisa - $lineTrans2['qty'];
+                    $pr2->qty_sisa = $pr2->qty_sisa - $recTrans2['qty'];
                     $pr2->save();
                 }
 
-                $po2 = PO2::where('dtl2_key',$lineTrans2['dtl2_key'])->first();
+                $po2 = PO2::where('dtl2_key',$recTrans2['dtl2_key'])->first();
                 if (!($po2)) {
                     $po2 = new PO2();
                     $po2->dtl2_key = DocNoController::getDocKey('doc_key');
                 }
                 $po2->doc_key        = $po1->doc_key;
-                $po2->no_urut        = $lineTrans2['no_urut'];
-                $po2->kd_bahan       = $lineTrans2['kd_bahan'];
-                $po2->satuan         = $lineTrans2['satuan'];
-                $po2->qty            = $lineTrans2['qty'];
-                $po2->rp_harga       = $lineTrans2['rp_harga'];
-                $po2->persen_diskon  = $lineTrans2['persen_diskon'];
-                $po2->rp_diskon      = $lineTrans2['rp_diskon'];
-                $po2->persen_diskon2 = $lineTrans2['persen_diskon2'];
-                $po2->rp_diskon2     = $lineTrans2['rp_diskon2'];
-                $po2->persen_diskon3 = $lineTrans2['persen_diskon3'];
-                $po2->rp_diskon3     = $lineTrans2['rp_diskon3'];
-                $po2->persen_diskon4 = $lineTrans2['persen_diskon4'];
-                $po2->rp_diskon4     = $lineTrans2['rp_diskon4'];
-                $po2->kd_pajak       = $lineTrans2['kd_pajak'];
-                $po2->persen_pajak   = $lineTrans2['persen_pajak'];
-                $po2->rp_pajak       = $lineTrans2['rp_pajak'];
-                $po2->rp_harga_akhir = $lineTrans2['rp_harga_akhir'];
-                $po2->qty_sisa       = $lineTrans2['qty_sisa'];
-                $po2->catatan        = $lineTrans2['catatan'];
-                $po2->fl_tutup       = $lineTrans2['fl_tutup'];
-                $po2->base_type      = $lineTrans2['base_type'];
-                $po2->base_ref       = $lineTrans2['base_ref'];
-                $po2->base_no_doc    = $lineTrans2['base_no_doc'];
+                $po2->no_urut        = $recTrans2['no_urut'];
+                $po2->kd_bahan       = $recTrans2['kd_bahan'];
+                $po2->satuan         = $recTrans2['satuan'];
+                $po2->qty            = $recTrans2['qty'];
+                $po2->rp_harga       = $recTrans2['rp_harga'];
+                $po2->persen_diskon  = $recTrans2['persen_diskon'];
+                $po2->rp_diskon      = $recTrans2['rp_diskon'];
+                $po2->persen_diskon2 = $recTrans2['persen_diskon2'];
+                $po2->rp_diskon2     = $recTrans2['rp_diskon2'];
+                $po2->persen_diskon3 = $recTrans2['persen_diskon3'];
+                $po2->rp_diskon3     = $recTrans2['rp_diskon3'];
+                $po2->persen_diskon4 = $recTrans2['persen_diskon4'];
+                $po2->rp_diskon4     = $recTrans2['rp_diskon4'];
+                $po2->kd_pajak       = $recTrans2['kd_pajak'];
+                $po2->persen_pajak   = $recTrans2['persen_pajak'];
+                $po2->rp_pajak       = $recTrans2['rp_pajak'];
+                $po2->rp_harga_akhir = $recTrans2['rp_harga_akhir'];
+                $po2->qty_sisa       = $recTrans2['qty_sisa'];
+                $po2->catatan        = $recTrans2['catatan'];
+                $po2->fl_tutup       = $recTrans2['fl_tutup'];
+                $po2->base_type      = $recTrans2['base_type'];
+                $po2->base_ref       = $recTrans2['base_ref'];
+                $po2->base_no_doc    = $recTrans2['base_no_doc'];
                 $po2->save();
             }
 
             //Data PO3
             //PO3::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
-            foreach($recTrans3 as $lineTrans3) {
-                $validator=Validator::make($lineTrans3,[
+            foreach($dataTrans3 as $recTrans3) {
+                $validator=Validator::make($recTrans3,[
                     'no_account'=>'bail|required',
                 ],[
                     'no_account.required'=>'No Account harus diisi',
@@ -441,26 +468,26 @@ class PurchaseOrderController extends Controller
                 }
 
                 //Update PR3
-                $pr3 = PR3::where('dtl3_key',$lineTrans3['base_ref'])->first();
+                $pr3 = PR3::where('dtl3_key',$recTrans3['base_ref'])->first();
                 if ($pr3) {
-                    $pr3->rp_sisa = $pr3->rp_sisa - $lineTrans3['rp_bayar'];
+                    $pr3->rp_sisa = $pr3->rp_sisa - $recTrans3['rp_bayar'];
                     $pr3->save();
                 }
 
-                $po3 = PO3::where('dtl3_key',$lineTrans3['dtl3_key'])->first();
+                $po3 = PO3::where('dtl3_key',$recTrans3['dtl3_key'])->first();
                 if (!($po3)) {
                     $po3 = new PO3();
                     $po3->dtl3_key = DocNoController::getDocKey('dtl3_key');
                 }
                 $po3->doc_key        = $po1->doc_key;
-                $po3->no_urut        = $lineTrans3['no_urut'];
-                $po3->no_account     = $lineTrans3['no_account'];
-                $po3->nm_account     = $lineTrans3['nm_account'];
-                $po3->catatan        = $lineTrans3['catatan'];
-                $po3->rp_bayar       = $lineTrans3['rp_bayar'];
-                $po3->rp_sisa        = $lineTrans3['rp_sisa'];
-                $po3->base_type      = $lineTrans3['base_type'];
-                $po3->base_ref       = $lineTrans3['base_ref'];
+                $po3->no_urut        = $recTrans3['no_urut'];
+                $po3->no_account     = $recTrans3['no_account'];
+                $po3->nm_account     = $recTrans3['nm_account'];
+                $po3->catatan        = $recTrans3['catatan'];
+                $po3->rp_bayar       = $recTrans3['rp_bayar'];
+                $po3->rp_sisa        = $recTrans3['rp_sisa'];
+                $po3->base_type      = $recTrans3['base_type'];
+                $po3->base_ref       = $recTrans3['base_ref'];
                 $po3->save();
             }
 
