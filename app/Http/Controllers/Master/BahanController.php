@@ -205,6 +205,15 @@ class BahanController extends Controller
         return response()->success('Success',$data);
     }
 
+    public function getKodeBahanBaru(Request $request) {
+        $kd_bahan=Bahan::where('kd_level',$request->kd_level)->max('kd_bahan')+1;
+        if ($request->kd_level=='0'){
+            $kd_bahan=substr('00000'.(string)$kd_bahan,strlen('00000'.(string)$kd_bahan)-6,6);
+        }
+        $response['message'] = $kd_bahan;
+        return response()->success('Success',$response);
+    }
+
     public function destroy(Request $request) {
         $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan :'';
         Bahan::where('kd_bahan',$kd_bahan)->delete();

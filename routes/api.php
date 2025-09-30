@@ -28,6 +28,7 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('bahan/all', 'show2');
         Route::get('bahan/get', 'get');
         Route::get('bahan/get-allref', 'getAllRef');
+        Route::get('bahan/get-kodebaru', 'getKodeBahanBaru');
         Route::delete('bahan', 'destroy');
         Route::post('bahan', 'store');
     });
