@@ -1,23 +1,17 @@
 <?php
 
-namespace App\Http\Controllers\Purchase;
+namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
-use App\Models\Purchase\PO1;
-use App\Models\Purchase\PO2;
-use App\Models\Purchase\PO3;
-use App\Models\Purchase\GR1;
-use App\Models\Purchase\GR2;
-use App\Models\Purchase\GR3;
+use App\Models\Purchase\Opname1;
+use App\Models\Purchase\Opname2;
 use App\Models\Master\Lokasi;
 use App\Models\Master\Bahan;
 use App\Models\Master\BahanSatuan;
 use App\Models\Master\Account;
-use App\Models\Master\Pajak;
-use App\Models\Master\Supplier;
 use App\Models\Tools\DocNo;
 use App\Models\Tools\DocNoThn;
 use App\Models\Stok\StokFifo;
@@ -43,7 +37,6 @@ class GoodsReceiptController extends Controller
             $join->on('a.doc_key','=','b.po_doc_key');
         })
         ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_po")
-        ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
         //->get();
 
@@ -56,7 +49,6 @@ class GoodsReceiptController extends Controller
             $join->on('a.doc_key','=','b.inv_doc_key');
         })
         ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_inv")
-        ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
 
         $data['t_gr1']= GR1::from('t_gr1 as a')
@@ -99,43 +91,13 @@ class GoodsReceiptController extends Controller
 
     public function get(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_gr1']= GR1::from('t_gr1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
-            a.kd_partner, a.kd_kontak,
-            a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
-            a.rp_rounding, a.rp_total, a.rp_uangmuka, a.rp_bayar, a.rp_sisa,
-            a.tgl_datang, a.tgl_berlaku, a.kd_buyer, a.catatan, a.catatan_jurnal, a.enum_tipe_po,
-            a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds, a.doc_key_jurnal,
-            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
-            a.batal_tgl, a.batal_userid, a.batal_lokasi,
-            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
+        $data['t_opname1']= Opname1::from('t_opname1 as a')
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.catatan, a.rp_total, a.tgl_proses,
+            a.fl_trds, a.doc_key_jurnal, a.fl_approved,
+            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->where("a.doc_key",$doc_key)
         ->first();
         return response()->success('Success',$data);
-    }
-
-    public function getBatal(Request $request) {
-        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_gr1']= GR1::from('t_gr1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
-        ->where("a.doc_key",$doc_key)
-        ->first();
-        $response['value']= ($data['t_gr1']) ? $data['t_gr1']->fl_batal : 'false';
-        return response()->success('Success',$response);
-    }
-
-    public function getLinkData(Request $request) {
-        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_gr1']= GR1::from('t_gr1 as a')
-        ->join('t_gr2 as b','a.doc_key','=','b.doc_key')
-        ->join('t_ap_invoice2 as c','b.dtl2_key','=','c.base_ref')
-        ->join('t_ap_invoice1 as d','c.doc_key','=','d.doc_key')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
-        ->where("a.doc_key",$doc_key)
-        ->where("d.fl_batal","false")
-        ->get();
-        $response['value']= (count($data['t_gr1'])>0) ? 'true' : 'false';
-        return response()->success('Success',$response);
     }
 
     public function getListPO(Request $request) {
@@ -176,21 +138,6 @@ class GoodsReceiptController extends Controller
 
     public function getItemPO(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : [];
-
-        //PO1
-        $data['t_po1']= PO1::from('t_po1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
-            a.kd_partner, a.kd_kontak,
-            a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
-            a.rp_rounding, a.rp_total, a.rp_uangmuka, a.rp_bayar, a.rp_sisa,
-            a.tgl_datang, a.tgl_berlaku, a.kd_buyer, a.catatan, a.catatan_jurnal, a.enum_tipe_po,
-            a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds,
-            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
-            a.batal_tgl, a.batal_userid, a.batal_lokasi,
-            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
-        ->where("a.doc_key",$doc_key)
-        ->first();
-
         $data['t_po2']= PO1::from('t_po1 as a')
         ->join('t_po2 as b','a.doc_key','=','b.doc_key')
         ->leftJoin('t_gr2 as c','b.dtl2_key','c.base_ref')
@@ -198,7 +145,7 @@ class GoodsReceiptController extends Controller
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
             b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
             b.persen_diskon4, b.rp_diskon4, b.kd_pajak, b.persen_pajak, b.rp_pajak, b.rp_harga_akhir,
-            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref, b.konversi, b.satuan_dasar,
+            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref,
             c.doc_key AS doc_key_po, c.rp_harga AS rp_harga_po,
             c.persen_diskon AS persen_diskon_po, c.rp_diskon AS rp_diskon_po,
             c.persen_diskon2 AS persen_diskon2_po, c.rp_diskon2 AS rp_diskon2_po,
@@ -301,15 +248,6 @@ class GoodsReceiptController extends Controller
             b.satuan AS satuan_dasar")
         ->get();
 
-        //Master Pajak
-        $subPajak= DB::table(DB::raw("(SELECT CAST(NULL AS varchar(20)) AS kd_pajak,
-            '(null)'::varchar AS nm_pajak, 0 AS persen_pajak, 'true'::boolean AS fl_aktif) AS b"));
-        $data['m_pajak']= Pajak::from('m_pajak')
-        ->selectRaw("kd_pajak, nm_pajak, persen_pajak, fl_aktif")
-        ->unionAll($subPajak)
-        ->orderByRaw("kd_pajak NULLS FIRST")
-        ->get();
-
         //Master Bahan Beli Filter
         $data['m_bahan_beli_filter']= Bahan::from('m_bahan as a')
         ->selectRaw("a.kd_bahan, a.nm_bahan, a.nm_bahan2, a.satuan, a.satuan2, a.konversi2,
@@ -335,7 +273,7 @@ class GoodsReceiptController extends Controller
         ->get();
 
         //Master Supplier Filter
-        $data['m_supplier_filter']= Supplier::from('m_supplier as a')
+        $data['m_supplier_filter']= Account::from('m_supplier as a')
         ->selectRaw("a.kd_supplier, a.nm_supplier, a.alamat, a.kota, a.propinsi, a.kodepos, a.negara, a.contact,
             a.telp, a.fax, a.email, a.webpage, a.kd_term, a.kd_supplier_grup, a.notes, a.fl_aktif,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
@@ -349,8 +287,6 @@ class GoodsReceiptController extends Controller
 
     public function destroy(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        GoodsReceiptController::updateLinkData($doc_key,FALSE);
-        GoodsReceiptController::updateStok($doc_key, FALSE);
         GR3::where('doc_key',$doc_key)->delete();
         GR2::where('doc_key',$doc_key)->delete();
         GR1::where('doc_key',$doc_key)->delete();
@@ -358,235 +294,103 @@ class GoodsReceiptController extends Controller
         return response()->success('Success',$response);
     }
 
-    public function setBatal(Request $request) {
-        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $catatan=isset($request->catatan) ? $request->catatan : '';
-        $gr1= GR1::where('doc_key',$doc_key)->first();
-        if ($gr1) {
-            if ($gr1->fl_batal == 'true') {
-                $response['message'] = 'Data sudah dibatalkan';
-                return response()->success('Success',$response);
-            }
-            GoodsReceiptController::updateLinkData($doc_key,FALSE);
-            GoodsReceiptController::updateStok($doc_key, FALSE);
-            //Update gr1
-            $gr1->catatan = $catatan . "\n" . $gr1->catatan;
-            $gr1->fl_batal = 'true';
-            $gr1->batal_tgl = date('Y-m-d H:i:s');
-            $gr1->batal_userid = $request->userid;
-            $gr1->batal_lokasi = $request->lokasi;
-            $gr1->save();
-        }
-        $response['message'] = 'Batal data berhasil';
-        return response()->success('Success',$response);
-    }
-
-    public static function updateLinkData($doc_key = 0, $insert = FALSE) {
-        if ($insert == FALSE) {
-            $po_doc_key = 0;
-            $qty= 0;
+    public static function updateLinkData($doc_key = 0) {
+        //PO1
+        $dataPO1= PO1::from("t_po1 as a")
+        ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+        ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+        ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
+        ->selectRaw("a.doc_key")
+        ->where("d.doc_key",$doc_key)
+        ->groupBy("a.doc_key")
+        ->get();
+        foreach($dataPO1 as $recPO1) {
+            //PO2
+            $dataPO2= PO2::where("doc_key",$recPO1->doc_key)->get();
             $qty_sisa= 0;
+            foreach($dataPO2 as $recTrans2) {
+                $qty_sisa = $qty_sisa + $recTrans2->qty_sisa;
+            }
+            //PO3
+            $dataPO3= PO3::where("doc_key",$recPO1->doc_key)->get();
             $rp_sisa= 0;
-            //PO1
-            $dataPO1= PO1::from("t_po1 as a")
-            ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
-            ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
-            ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
-            ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
-            ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
-            ->get();
-            foreach($dataPO1 as $recPO1) {
-                $po_doc_key = $recPO1->doc_key;
-                //Update PO2
-                $po2 = PO2::where('dtl2_key',$recPO1->dtl2_key)->first();
-                if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa + $recPO1->qty;
-                    $po2->save();
-                    $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
-                }
-                //Update PO3
-                $po3 = PO3::where('dtl3_key',$recPO1->dtl3_key)->first();
-                if ($po3) {
-                    $po3->rp_sisa = $po3->rp_sisa + $recPO1->rp_bayar;
-                    $po3->save();
-                    $rp_sisa = $rp_sisa + $po3->rp_sisa;
-                }
+            foreach($dataPO3 as $recTrans3) {
+                $rp_sisa = $rp_sisa + $recTrans3->rp_sisa;
             }
-
             //Update PO1
-            $updPO1= PO1::where("doc_key",$po_doc_key)->first();
-            if ($updPO1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPO1->fl_tutup= TRUE;
+            $dataPO1= PO1::where("doc_key",$recPO1->doc_key)->first();
+            if ($dataPO1) {
+                if($qty_sisa == 0 && $rp_sisa == 0) {
+                    $dataPO1->fl_tutup= TRUE;
                 } else {
-                    $updPO1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPO1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPO1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPO1->enum_tipe_po = 2; //Sebagian
+                    $dataPO1->fl_tutup= FALSE;
                 }
-                $updPO1->save();
+                $dataPO1->save();
             }
-        } elseif ($insert == TRUE) {
-            $po_doc_key = 0;
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
-            //PO1
-            $dataPO1= PO1::from("t_po1 as a")
-            ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
-            ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
-            ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
-            ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
-            ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
-            ->get();
-            foreach($dataPO1 as $recPO1) {
-                $po_doc_key = $recPO1->doc_key;
-                //Update PO2
-                $po2 = PO2::where('dtl2_key',$recPO1->dtl2_key)->first();
-                if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa - $recPO1->qty;
-                    $po2->save();
-                    $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
-                }
-                //Update PO3
-                $po3 = PO3::where('dtl3_key',$recPO1->dtl3_key)->first();
-                if ($po3) {
-                    $po3->rp_sisa = $po3->rp_sisa - $recPO1->rp_bayar;
-                    $po3->save();
-                    $rp_sisa = $rp_sisa + $po3->rp_sisa;
-                }
-            }
-
-            //Update PO1
-            $updPO1= PO1::where("doc_key",$po_doc_key)->first();
-            if ($updPO1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPO1->fl_tutup= TRUE;
-                } else {
-                    $updPO1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPO1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPO1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPO1->enum_tipe_po = 2; //Sebagian
-                }
-                $updPO1->save();
-            }
-            //var_dump($po_doc_key,$qty,$qty_sisa,$rp_sisa);
         }
         //var_dump($recPO1->doc_key,$rp_sisa);
-        //var_dump($qty,$qty_sisa,$rp_sisa);
-        $response['message'] = 'Set link data berhasil';
-        return response()->success('Success',$response);
     }
 
     public static function updateStok($doc_key = 0, $insert = FALSE) {
-        $docTrans=11; //Goods Receipt
-        if ($insert == FALSE) {
-            $dataTrans= GR1::from("t_gr1 as a")
+        if ($insert == TRUE) {
+            $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
-            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
-                b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.rp_harga, b.persen_diskon, b.rp_diskon,
+            ->selectRaw("a.doc_key, a.tgl_doc, a.kd_lokasi, b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.rp_harga, b.persen_diskon, b.rp_diskon,
                 b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3, b.persen_diskon4, b.rp_diskon4,
-                b.persen_pajak, b.rp_pajak, b.rp_harga_akhir, b.konversi, b.satuan_dasar, b.stok_fifo_key")
+                b.persen_pajak, b.rp_pajak, b.rp_harga_akhir")
             ->where("a.doc_key",$doc_key)
             ->orderBy("b.no_urut")
             ->get();
-            foreach($dataTrans as $recTrans) {
+            foreach($dataGR as $recGR) {
+                $docGR=11; //Goods Receipt
                 //FIFO Header
-                $dataStokFifo= StokFifo::where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
-                if ($dataStokFifo) {
-                    $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand - ($recTrans->qty*$recTrans->konversi);
-                    $dataStokFifo->qty_in = $dataStokFifo->qty_in - ($recTrans->qty*$recTrans->konversi);
-                    $dataStokFifo->save();
-                    //FIFO Detail
-                    $stokFifoKey = $dataStokFifo->stok_fifo_key;
-                    $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
-                        ->where("kd_bahan",$recTrans->kd_bahan)
-                        ->where("satuan",$recTrans->satuan_dasar)
-                        ->where("base_type",$docTrans)
-                        ->where("base_doc_key",$recTrans->doc_key)
-                        ->where("base_dtl2_key",$recTrans->dtl2_key)
-                        ->where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
-                    if ($dataStokFifoDtl) {
-                        $dataStokFifoDtl->qty = $dataStokFifoDtl->qty - ($recTrans->qty*$recTrans->konversi);
-                        $dataStokFifoDtl->save();
-                    }
+                if ($insert == TRUE) {
+                    $dataStokFifo= StokFifo::where("kd_lokasi",$recGR->kd_lokasi)
+                    ->where("kd_bahan",$recGR->kd_bahan)
+                    ->where("satuan",$recGR->satuan)
+                    ->where("base_type",$docGR)
+                    ->where("base_doc_key",$recGR->doc_key)
+                    ->where("base_dtl2_key",$recGR->dtl2_key)->first();
+                } else {
+                    $dataStokFifo= StokFifo::where("stok_fifo_key",$recGR->stok_fifo_key)->first();
                 }
-            }
-        } elseif ($insert == TRUE) {
-            $dataTrans= GR1::from("t_gr1 as a")
-            ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
-            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
-                b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.rp_harga, b.persen_diskon, b.rp_diskon,
-                b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3, b.persen_diskon4, b.rp_diskon4,
-                b.persen_pajak, b.rp_pajak, b.rp_harga_akhir, b.konversi, b.satuan_dasar, b.stok_fifo_key")
-            ->where("a.doc_key",$doc_key)
-            ->orderBy("b.no_urut")
-            ->get();
-            foreach($dataTrans as $recTrans) {
-                //FIFO Header
-                $dataStokFifo= StokFifo::where("kd_lokasi",$recTrans->kd_lokasi)
-                    ->where("kd_bahan",$recTrans->kd_bahan)
-                    ->where("satuan",$recTrans->satuan_dasar)
-                    ->where("base_type",$docTrans)
-                    ->where("base_doc_key",$recTrans->doc_key)
-                    ->where("base_dtl2_key",$recTrans->dtl2_key)->first();
                 if (!$dataStokFifo) {
                     $dataStokFifo= new StokFifo();
                     $dataStokFifo->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
-                    $dataGR2= GR2::where("dtl2_key",$recTrans->dtl2_key)->first();
-                    if ($dataGR2) {
-                        $dataGR2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
-                        $dataGR2->save();
-                    }
+                    $dataStokFifo->kd_lokasi = $recGR->kd_lokasi;
+                    $dataStokFifo->kd_bahan = $recGR->kd_bahan;
+                    $dataStokFifo->satuan = $recGR->satuan;
+                    $dataStokFifo->tgl_doc = $recGR->tgl_doc;
+                    $dataStokFifo->qty_on_hand = $recGR->qty;
+                    $dataStokFifo->qty_in = $recGR->qty;
+                    $dataStokFifo->rp_harga = $recGR->rp_harga;
+                    $dataStokFifo->base_type = $docGR;
+                    $dataStokFifo->base_doc_key = $recGR->doc_key;
+                    $dataStokFifo->base_dtl2_key = $recGR->dtl2_key;
+                    $dataStokFifo->save();
                 }
-                $dataStokFifo->kd_lokasi = $recTrans->kd_lokasi;
-                $dataStokFifo->kd_bahan = $recTrans->kd_bahan;
-                $dataStokFifo->satuan = $recTrans->satuan_dasar;
-                $dataStokFifo->tgl_doc = $recTrans->tgl_doc;
-                $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand + ($recTrans->qty*$recTrans->konversi);
-                $dataStokFifo->qty_in = $dataStokFifo->qty_in + ($recTrans->qty*$recTrans->konversi);
-                $dataStokFifo->rp_harga = $recTrans->rp_harga;
-                $dataStokFifo->base_type = $docTrans;
-                $dataStokFifo->base_doc_key = $recTrans->doc_key;
-                $dataStokFifo->base_dtl2_key = $recTrans->dtl2_key;
-                $dataStokFifo->save();
                 //FIFO Detail
                 $stokFifoKey = $dataStokFifo->stok_fifo_key;
-                $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
-                    ->where("kd_bahan",$recTrans->kd_bahan)
-                    ->where("satuan",$recTrans->satuan_dasar)
-                    ->where("base_type",$docTrans)
-                    ->where("base_doc_key",$recTrans->doc_key)
-                    ->where("base_dtl2_key",$recTrans->dtl2_key)->first();
+                $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recGR->kd_lokasi)
+                    ->where("kd_bahan",$recGR->kd_bahan)
+                    ->where("satuan",$recGR->satuan)
+                    ->where("base_type",$docGR)
+                    ->where("base_doc_key",$recGR->doc_key)
+                    ->where("base_dtl2_key",$recGR->dtl2_key)->first();
                 if (!$dataStokFifoDtl) {
                     $dataStokFifoDtl= new StokFifoDtl();
                     $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
+                    $dataStokFifoDtl->stok_fifo_key = $stokFifoKey;
+                    $dataStokFifoDtl->kd_lokasi = $recGR->kd_lokasi;
+                    $dataStokFifoDtl->kd_bahan = $recGR->kd_bahan;
+                    $dataStokFifoDtl->satuan = $recGR->satuan;
+                    $dataStokFifoDtl->tgl_doc = $recGR->tgl_doc;
+                    $dataStokFifoDtl->qty = $recGR->qty;
+                    $dataStokFifoDtl->base_type = $docGR;
+                    $dataStokFifoDtl->base_doc_key = $recGR->doc_key;
+                    $dataStokFifoDtl->base_dtl2_key = $recGR->dtl2_key;
+                    $dataStokFifoDtl->save();
                 }
-                $dataStokFifoDtl->stok_fifo_key = $stokFifoKey;
-                $dataStokFifoDtl->kd_lokasi = $recTrans->kd_lokasi;
-                $dataStokFifoDtl->kd_bahan = $recTrans->kd_bahan;
-                $dataStokFifoDtl->satuan = $recTrans->satuan_dasar;
-                $dataStokFifoDtl->tgl_doc = $recTrans->tgl_doc;
-                $dataStokFifoDtl->no_doc = $recTrans->no_doc;
-                $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + ($recTrans->qty*$recTrans->konversi);
-                $dataStokFifoDtl->base_type = $docTrans;
-                $dataStokFifoDtl->base_doc_key = $recTrans->doc_key;
-                $dataStokFifoDtl->base_dtl2_key = $recTrans->dtl2_key;
-                $dataStokFifoDtl->save();
             }
         }
         //var_dump($recPO1->doc_key,$rp_sisa);
@@ -595,13 +399,13 @@ class GoodsReceiptController extends Controller
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
-        $doc_key=isset($where['doc_key']) ? $where['doc_key'] : 0;
         $dataTrans1= $data['t_gr1'];
         $dataTrans2= $data['t_gr2'];
         $dataTrans3= $data['t_gr3'];
 
         DB::beginTransaction();
         try {
+            $bInsert = FALSE;
             //Data Bahan
             $validator=Validator::make($dataTrans1,[
                 'kd_partner'=>'bail|required',
@@ -612,17 +416,9 @@ class GoodsReceiptController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
-            $gr1= GR1::where('doc_key',$doc_key)->first();
-
-            //Jika ada data lama, kurangi stok terlebih dahulu
-            if ($gr1) {
-                GoodsReceiptController::updateLinkData($doc_key, FALSE);
-                if (UtilityController::getAutoStok() == 'true') {
-                    GoodsReceiptController::updateStok($doc_key, FALSE);
-                }
-            }
-
+            $gr1= GR1::where('doc_key',$where['doc_key'])->first();
             if (!($gr1)) {
+                $bInsert = TRUE;
                 $gr1= new GR1();
                 $gr1->doc_key = DocNoController::getDocKey('doc_key');
             }
@@ -674,13 +470,13 @@ class GoodsReceiptController extends Controller
             $gr1->save();
 
             //Data GR2
-            $existingIds = GR2::where('doc_key',$doc_key)->pluck('dtl2_key')->toArray();
+            $existingIds = GR2::where('doc_key',$where['doc_key'])->pluck('dtl2_key')->toArray();
             $newIds = collect($dataTrans2)->pluck('dtl2_key')->filter()->toArray();
             // Delete items that are not in request
             $toDelete = array_diff($existingIds, $newIds);
             GR2::whereIn('dtl2_key', $toDelete)->delete();
 
-            //GR2::where('doc_key',$doc_key)->delete(); //Hapus data existing
+            //GR2::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
             foreach($dataTrans2 as $recTrans2) {
                 $validator=Validator::make($recTrans2,[
                     'kd_bahan'=>'bail|required',
@@ -693,6 +489,13 @@ class GoodsReceiptController extends Controller
                 if ($validator->fails()){
                     return response()->error('',501,$validator->errors()->first());
                 }
+
+                //Update PO2
+                /*$po2 = PO2::where('dtl2_key',$recTrans2['base_ref'])->first();
+                if ($po2) {
+                    $po2->qty_sisa = $po2->qty_sisa - $recTrans2['qty'];
+                    $po2->save();
+                }*/
 
                 $gr2 = GR2::where('dtl2_key',$recTrans2['dtl2_key'])->first();
                 if (!($gr2)) {
@@ -723,19 +526,17 @@ class GoodsReceiptController extends Controller
                 $gr2->base_type      = $recTrans2['base_type'];
                 $gr2->base_ref       = $recTrans2['base_ref'];
                 $gr2->base_no_doc    = $recTrans2['base_no_doc'];
-                $gr2->konversi       = $recTrans2['konversi'];
-                $gr2->satuan_dasar   = $recTrans2['satuan_dasar'];
                 $gr2->save();
             }
 
             //Data GR3
-            $existingIds = GR3::where('doc_key',$doc_key)->pluck('dtl3_key')->toArray();
+            $existingIds = GR3::where('doc_key',$where['doc_key'])->pluck('dtl3_key')->toArray();
             $newIds = collect($dataTrans3)->pluck('dtl3_key')->filter()->toArray();
             // Delete items that are not in request
             $toDelete = array_diff($existingIds, $newIds);
             GR3::whereIn('dtl3_key', $toDelete)->delete();
 
-            //GR3::where('doc_key',$doc_key)->delete(); //Hapus data existing
+            //GR3::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
             foreach($dataTrans3 as $recTrans3) {
                 $validator=Validator::make($recTrans3,[
                     'no_account'=>'bail|required',
@@ -747,9 +548,16 @@ class GoodsReceiptController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
+                //Update PO3
+                /*$po3 = PO3::where('dtl3_key',$recTrans3['base_ref'])->first();
+                if ($po3) {
+                    $po3->rp_sisa = $po3->rp_sisa - $recTrans3['rp_bayar'];
+                    $po3->save();
+                }*/
+
                 $gr3 = GR3::where('dtl3_key',$recTrans3['dtl3_key'])->first();
                 if (!($gr3)) {
-                    $gr3 = new GR3();
+                    $gr3 = new PO3();
                     $gr3->dtl3_key = DocNoController::getDocKey('doc_key');
                 }
                 $gr3->doc_key        = $gr1->doc_key;
@@ -764,10 +572,8 @@ class GoodsReceiptController extends Controller
                 $gr3->save();
             }
 
-            GoodsReceiptController::updateLinkData($gr1->doc_key, TRUE);
-            if (UtilityController::getAutoStok() == 'true') {
-                GoodsReceiptController::updateStok($gr1->doc_key, TRUE);
-            }
+            GoodsReceiptController::updateLinkData($gr1->doc_key);
+            GoodsReceiptController::updateStok($gr1->doc_key, $bInsert);
 
             DB::commit();
             $response['message'] = 'Simpan data berhasil';

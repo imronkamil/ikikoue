@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Models\Stok;
+namespace App\Models\Purchase;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class StokFifoDtl extends Model
+class APinvoice4 extends Model
 {
     use HasFactory;
-    protected $table = 'm_stok_fifo_dtl';
-    protected $primaryKey = 'stok_fifo_dtl_key';
-    protected $keyType = 'integer';
+    protected $table = 't_ap_invoice4';
+    protected $primaryKey = 'dtl4_key';
+    protected $keyType = 'bigInteger';
     public $incrementing  = false;
     public $timestamps = false;
     protected $casts = [
-        'qty'=>'float',
+        'rp_jumlah'=>'float'
     ];
 }

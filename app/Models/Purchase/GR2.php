@@ -28,6 +28,7 @@ class GR2 extends Model
         'persen_pajak'=>'float',
         'rp_pajak'=>'float',
         'rp_harga_akhir'=>'float',
-        'qty_sisa'=>'float'
+        'qty_sisa'=>'float',
+        'konversi'=>'float'
     ];
 }

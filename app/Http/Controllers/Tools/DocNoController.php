@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use App\Models\Tools\DocNo;
 use App\Models\Tools\DocNoThn;
 use App\Models\Tools\NoTran;
+use App\Helpers\Pages;
 
 class DocNoController extends Controller
 {
@@ -103,7 +104,8 @@ class DocNoController extends Controller
         $dept=$request->dept;
         $partner=$request->partner;
         $tgl=$request->tanggal;
-        $format='PR/[D]/[P]/[X]/{yyMM}<0000>';
+        //$format='PR/[D]/[P]/[X]/{yyMM}<0000>';
+        $format='PR/[D]/[P]/[X]/{yy}-<0000>';
         $hasil=$format;
 
         if(str_contains($hasil,"[D]")) {
@@ -117,109 +119,269 @@ class DocNoController extends Controller
         $awal=strpos($hasil,'{');
         $akhir=strpos($hasil,'}');
         $fmttgl=substr($hasil,$awal,$akhir-$awal+1);
+        $fmttgl2=substr($hasil,$awal+1,$akhir-$awal-1);
+        $tgldoc = date_create($tgl);
 
+        //bulan
+        if(str_contains(strtolower($fmttgl2),"mm")) {
+            $bln = date_format($tgldoc,'m');
+            $fmttgl2=str_replace("mm",$bln,strtolower($fmttgl2));
+        } elseif (str_contains(strtolower($fmttgl2),"m")) {
+            $bln = date_format($tgldoc,'n');
+            $fmttgl2=str_replace("m",$bln,strtolower($fmttgl2));
+        }
+
+        //tahun
+        if(str_contains(strtolower($fmttgl2),"yyyy")) {
+            $thn = date_format($tgldoc,'yy');
+            $fmttgl2=str_replace("yyyy",$thn,strtolower($fmttgl2));
+        } elseif (str_contains(strtolower($fmttgl2),"yy")) {
+            $sbln = date_format($tgldoc,'y');
+            $fmttgl2=str_replace("yy",$sbln,strtolower($fmttgl2));
+        }
+
+        //bulan dan tahun
+        if(str_contains($hasil,$fmttgl)) {
+            $hasil=str_replace($fmttgl,$fmttgl2,$hasil);
+        }
+
+        //Roman
+        $tgldoc = date_create($tgl);
+        $sthn = date_format($tgldoc,'y');
+        $sbln = date_format($tgldoc,'m');
+        $stgl = date_format($tgldoc,'YM');
+
+        if(str_contains($hasil,"[X]")) {
+            $hasil=str_replace("[X]",Pages::intToRoman($sbln),$hasil);
+        }
+
+        //Counter
         $awal=strpos($hasil,'<');
         $akhir=strpos($hasil,'>');
         $fmtcount=substr($hasil,$awal,$akhir-$awal+1);
 
-        $tgldoc = date_create($tgl);
-        $stgl = date_format($tgldoc,'ym');
-
-        //return $hasil . strval($awal) . strval($akhir) . $fmttgl . $fmtcount . $tgl . $stgl;
+        //return $hasil . strval($awal) . strval($akhir) . $fmttgl . $fmtcount . $sthn . $sbln . $stgl;
+        //return strval($awal) . strval($akhir) . $fmttgl . $fmtcount . $sthn . $sbln . $stgl;
+        //return strval($sthn) . strval($sbln) . '-' . $fmtcount . $fmttgl2;
+        //return $fmttgl2;
         return $hasil; //. strval($awal) . strval($akhir) . $fmttgl . $fmtcount . $tgl . $stgl;
     }
 
     public function getDocNo(Request $request) {
         $docno_id=isset($request->docno_id) ? $request->docno_id : '';
-        $tahun=isset($request->tahun) ? $request->tahun : 0;
-        $bulan=isset($request->bulan) ? $request->bulan : 0;
+        $tanggal=isset($request->tanggal) ? $request->tanggal : 0;
+        $dept=isset($request->dept) ? $request->dept : '';
+        $partner=isset($request->partner) ? $request->partner : '';
+
+        $tahun = date('Y', strtotime($tanggal));
+        $bulan = date('m', strtotime($tanggal));
+        $tgldoc = date_create($tanggal);
+        $counter = 0;
 
         $data['i_docno']= NoTran::from('i_docno as a')
         ->selectRaw("a.docno_id, a.nm_docno, a.base_type, a.doc_type, a.nomor, a.format, a.contoh,
-            a.fl_default,
+            a.enum_counter, a.fl_default,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->where("a.docno_id",$docno_id)
         ->first();
 
-        $data['i_docno_thn']= NoTran::from('i_docno_thn as a')
-        ->selectRaw("a.docno_thn_id, a.docno_id, a.tahun, a.bulan1, a.bulan2, a.bulan3, a.bulan4,
-            a.bulan5, a.bulan6, a.bulan7, a.bulan8, a.bulan9, a.bulan10, a.bulan11, a.bulan12")
-        ->where("a.docno_id",$docno_id)
-        ->where("a.tahun",$tahun)
-        ->first();
-        return response()->success('Success',$data);
+        $format = $data['i_docno']->format;
+        $enum_counter = $data['i_docno']->enum_counter;
+
+        if ($enum_counter == 0) {
+            $counter = $data['i_docno']->nomor;
+        } else {
+            $data['i_docno_thn']= NoTran::from('i_docno_thn as a')
+            ->selectRaw("a.docno_thn_id, a.docno_id, a.tahun, a.bulan1, a.bulan2, a.bulan3, a.bulan4,
+                a.bulan5, a.bulan6, a.bulan7, a.bulan8, a.bulan9, a.bulan10, a.bulan11, a.bulan12, a.no_urut")
+            ->where("a.docno_id",$docno_id)
+            ->where("a.tahun",$tahun)
+            ->first();
+
+            if ($data['i_docno_thn']) {
+                if ($enum_counter == 1) {
+                    $counter = $data['i_docno_thn']->no_urut;
+                } else {
+                    switch($bulan) {
+                        case 1:
+                            $counter = $data['i_docno_thn']->bulan1;
+                            break;
+                        case 2:
+                            $counter = $data['i_docno_thn']->bulan2;
+                            break;
+                        case 3:
+                            $counter = $data['i_docno_thn']->bulan3;
+                            break;
+                        case 4:
+                            $counter = $data['i_docno_thn']->bulan4;
+                            break;
+                        case 5:
+                            $counter = $data['i_docno_thn']->bulan5;
+                            break;
+                        case 6:
+                            $counter = $data['i_docno_thn']->bulan6;
+                            break;
+                        case 7:
+                            $counter = $data['i_docno_thn']->bulan7;
+                            break;
+                        case 8:
+                            $counter = $data['i_docno_thn']->bulan8;
+                            break;
+                        case 9:
+                            $counter = $data['i_docno_thn']->bulan9;
+                            break;
+                        case 10:
+                            $counter = $data['i_docno_thn']->bulan10;
+                            break;
+                        case 11:
+                            $counter = $data['i_docno_thn']->bulan11;
+                            break;
+                        case 12:
+                            $counter = $data['i_docno_thn']->bulan12;
+                            break;
+                        default:
+                            $counter = $data['i_docno']->nomor;
+                            break;
+                    }
+                }
+            }
+        }
+
+        $hasil=$format;
+
+        if(str_contains($hasil,"[D]")) {
+            $hasil=str_replace("[D]",$dept,$hasil);
+        }
+
+        if(str_contains($hasil,"[P]")) {
+            $hasil=str_replace("[P]",$partner,$hasil);
+        }
+
+        //Roman
+        $sbln = date_format($tgldoc,'m');
+        if(str_contains($hasil,"[X]")) {
+            $hasil=str_replace("[X]",Pages::intToRoman($sbln),$hasil);
+        }
+
+        $awal=strpos($hasil,'{');
+        $akhir=strpos($hasil,'}');
+        $fmttgl=substr($hasil,$awal,$akhir-$awal+1);
+        $fmttgl2=substr($hasil,$awal+1,$akhir-$awal-1);
+
+        //bulan
+        if(str_contains(strtolower($fmttgl2),"mm")) {
+            $bln = date_format($tgldoc,'m');
+            $fmttgl2=str_replace("mm",$bln,strtolower($fmttgl2));
+        } elseif (str_contains(strtolower($fmttgl2),"m")) {
+            $bln = date_format($tgldoc,'n');
+            $fmttgl2=str_replace("m",$bln,strtolower($fmttgl2));
+        }
+
+        //tahun
+        if(str_contains(strtolower($fmttgl2),"yyyy")) {
+            $thn = date_format($tgldoc,'Y');
+            $fmttgl2=str_replace("yyyy",$thn,strtolower($fmttgl2));
+        } elseif (str_contains(strtolower($fmttgl2),"yy")) {
+            $sbln = date_format($tgldoc,'y');
+            $fmttgl2=str_replace("yy",$sbln,strtolower($fmttgl2));
+        }
+
+        //bulan dan tahun
+        if(str_contains($hasil,$fmttgl)) {
+            $hasil=str_replace($fmttgl,$fmttgl2,$hasil);
+        }
+
+        //Counter
+        $awal=strpos($hasil,'<');
+        $akhir=strpos($hasil,'>');
+        $fmtcount=substr($hasil,$awal,$akhir-$awal+1);
+        $fmtcount2=substr($hasil,$awal+1,$akhir-$awal-1);
+        if(str_contains($hasil,$fmtcount)) {
+            $hasil=str_replace($fmtcount,substr($fmtcount2.(string)$counter,-strlen($fmtcount2)),$hasil);
+        }
+
+        $response['value'] = $hasil;
+        /*$response['value1'] = $counter;
+        $response['value2'] = $docno_id;
+        $response['value3'] = $tahun;
+        $response['value4'] = $enum_counter;*/
+        return response()->success('Success',$response);
     }
 
     public function setDocNo(Request $request) {
         $docno_id=isset($request->docno_id) ? $request->docno_id : '';
-        $tahun=isset($request->tahun) ? $request->tahun : 0;
-        $bulan=isset($request->bulan) ? $request->bulan : 0;
+        $tanggal=isset($request->tanggal) ? $request->tanggal : 0;
+
+        $tahun = date('Y', strtotime($tanggal));
+        $bulan = date('m', strtotime($tanggal));
+        $tgldoc = date_create($tanggal);
 
         $notran = DocNo::where('docno_id',$docno_id)->first();
-        if (!($notran)) {
-            $notran = new DocNo();
-            $notran->docno_id = $docno_id;
-            $notran->nm_docno = $nm_docno;
-            $notran->nomor = 1;
-            $notran->save();
-        }
-        else if ($notran->fl_perbulan == TRUE) {
-            $notranthn = DocNoThn::where('nm_docno',$nm_docno)
-            ->where('tahun',$tahun)->first();
-            if (!($notranthn)) {
-                $notranthn = new DocNoThn();
-                $notranthn->nm_docno = $nm_docno;
-                $notranthn->tahun = $tahun;
+        if ($notran) {
+            if ($notran->enum_counter == 0) {
+                $notran->nomor = $notran->nomor+1;
+                $notran->save();
             }
-            switch($bulan) {
-                case 1:
-                    $notranthn->bulan1 = $notranthn->bulan1+1;
-                    break;
-                case 2:
-                    $notranthn->bulan2 = $notranthn->bulan2+1;
-                    break;
-                case 3:
-                    $notranthn->bulan3 = $notranthn->bulan3+1;
-                    break;
-                case 4:
-                    $notranthn->bulan4 = $notranthn->bulan4+1;
-                    break;
-                case 5:
-                    $notranthn->bulan5 = $notranthn->bulan5+1;
-                    break;
-                case 6:
-                    $notranthn->bulan6 = $notranthn->bulan6+1;
-                    break;
-                case 7:
-                    $notranthn->bulan7 = $notranthn->bulan7+1;
-                    break;
-                case 8:
-                    $notranthn->bulan8 = $notranthn->bulan8+1;
-                    break;
-                case 9:
-                    $notranthn->bulan9 = $notranthn->bulan9+1;
-                    break;
-                case 10:
-                    $notranthn->bulan10 = $notranthn->bulan10+1;
-                    break;
-                case 11:
-                    $notranthn->bulan11 = $notranthn->bulan11+1;
-                    break;
-                case 12:
-                    $notranthn->bulan12 = $notranthn->bulan12+1;
-                    break;
-                default:
-                    $notranthn->no_urut = $notranthn->no_urut+1;
-                    break;
+            else {
+                $notranthn = DocNoThn::where('docno_id',$docno_id)
+                ->where('tahun',$tahun)->first();
+                if ($notranthn) {
+                    if ($notran->enum_counter == 1) {
+                        $notranthn->no_urut = $notranthn->no_urut+1;
+                        $notranthn->save();
+                    }
+                    elseif ($notran->enum_counter == 2) {
+                        switch($bulan) {
+                            case 1:
+                                $notranthn->bulan1 = $notranthn->bulan1+1;
+                                break;
+                            case 2:
+                                $notranthn->bulan2 = $notranthn->bulan2+1;
+                                break;
+                            case 3:
+                                $notranthn->bulan3 = $notranthn->bulan3+1;
+                                break;
+                            case 4:
+                                $notranthn->bulan4 = $notranthn->bulan4+1;
+                                break;
+                            case 5:
+                                $notranthn->bulan5 = $notranthn->bulan5+1;
+                                break;
+                            case 6:
+                                $notranthn->bulan6 = $notranthn->bulan6+1;
+                                break;
+                            case 7:
+                                $notranthn->bulan7 = $notranthn->bulan7+1;
+                                break;
+                            case 8:
+                                $notranthn->bulan8 = $notranthn->bulan8+1;
+                                break;
+                            case 9:
+                                $notranthn->bulan9 = $notranthn->bulan9+1;
+                                break;
+                            case 10:
+                                $notranthn->bulan10 = $notranthn->bulan10+1;
+                                break;
+                            case 11:
+                                $notranthn->bulan11 = $notranthn->bulan11+1;
+                                break;
+                            case 12:
+                                $notranthn->bulan12 = $notranthn->bulan12+1;
+                                break;
+                            default:
+                                $notranthn->no_urut = $notranthn->no_urut+1;
+                                break;
+                        }
+                        $notranthn->save();
+                    }
+                }
             }
-            $notranthn->save();
         }
-        else {
-            $notran->nomor = $notran->nomor+1;
-            $notran->save();
-        }
+
         $response['message'] = 'Simpan data berhasil';
-        return response()->success('Success',$notran);
+        $value['notran'] = $notran;
+        $value['notranthn'] = $notranthn;
+        return response()->success('Success',$value);
     }
 
     public function destroy(Request $request) {

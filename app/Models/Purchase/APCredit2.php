@@ -5,10 +5,10 @@ namespace App\Models\Purchase;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PO2 extends Model
+class APCredit2 extends Model
 {
     use HasFactory;
-    protected $table = 't_po2';
+    protected $table = 't_ap_credit2';
     protected $primaryKey = 'dtl2_key';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;

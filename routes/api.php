@@ -109,6 +109,34 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::delete('supplier', 'destroy');
         Route::post('supplier', 'store');
     });
+    Route::controller(\Master\LokasiController::class)->group(function () {
+        Route::get('lokasi', 'show1');
+        Route::get('lokasi/all', 'show2');
+        Route::get('lokasi/get', 'get');
+        Route::delete('lokasi', 'destroy');
+        Route::post('lokasi', 'store');
+    });
+    Route::controller(\Master\PaketController::class)->group(function () {
+        Route::get('paket', 'show1');
+        Route::get('paket/all', 'show2');
+        Route::get('paket/get', 'get');
+        Route::delete('paket', 'destroy');
+        Route::post('paket', 'store');
+    });
+    Route::controller(\Master\BayarController::class)->group(function () {
+        Route::get('bayar', 'show1');
+        Route::get('bayar/all', 'show2');
+        Route::get('bayar/get', 'get');
+        Route::delete('bayar', 'destroy');
+        Route::post('bayar', 'store');
+    });
+    Route::controller(\Master\CustomerController::class)->group(function () {
+        Route::get('customer', 'show1');
+        Route::get('customer/all', 'show2');
+        Route::get('customer/get', 'get');
+        Route::delete('customer', 'destroy');
+        Route::post('customer', 'store');
+    });
 });
 
 Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], function () {
@@ -123,6 +151,21 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::delete('docno', 'destroy');
         Route::post('docno', 'store');
     });
+    Route::controller(\Tools\UtilityController::class)->group(function () {
+        Route::get('util', 'show1');
+        Route::get('util/all', 'show2');
+        Route::get('util/get', 'get');
+        Route::get('util/get-status-bytglopname', 'getStatusByTglOpname');
+        Route::get('util/get-fiscaldate-status', 'getPostingDateStatus');
+        Route::get('util/get-kodeproject', 'getKodeProjectByLokasi');
+        Route::get('util/get-hakmenu', 'getHakMenu');
+        Route::get('util/get-notif', 'getNotifTrans');
+        Route::get('util/get-notif-list', 'getNotifTransList');
+        Route::get('util/get-newversion', 'getNewVersion');
+        Route::get('util/get-login-access', 'getLoginAccess');
+        Route::delete('util', 'destroy');
+        Route::post('util', 'store');
+    });
 });
 
 Route::group(['prefix' => 'purchase', 'as' => 'purchase', 'middleware' => 'appauth'], function () {
@@ -130,28 +173,130 @@ Route::group(['prefix' => 'purchase', 'as' => 'purchase', 'middleware' => 'appau
         Route::get('pr', 'show1');
         Route::get('pr/all', 'show2');
         Route::get('pr/get', 'get');
+        Route::get('pr/get-batal', 'getBatal');
+        Route::get('pr/get-linkdata', 'getLinkData');
         Route::get('pr/get-allref', 'getAllRef');
         Route::delete('pr', 'destroy');
+        Route::post('pr/set-batal', 'setBatal');
         Route::post('pr', 'store');
     });
     Route::controller(\Purchase\PurchaseOrderController::class)->group(function () {
         Route::get('po', 'show1');
         Route::get('po/all', 'show2');
         Route::get('po/get', 'get');
+        Route::get('po/get-batal', 'getBatal');
+        Route::get('po/get-linkdata', 'getLinkData');
         Route::get('po/get-listpr', 'getListPR');
         Route::post('po/get-itempr', 'getItemPR');
         Route::get('po/get-allref', 'getAllRef');
         Route::delete('po', 'destroy');
+        Route::post('po/set-batal', 'setBatal');
         Route::post('po', 'store');
     });
     Route::controller(\Purchase\GoodsReceiptController::class)->group(function () {
         Route::get('gr', 'show1');
         Route::get('gr/all', 'show2');
         Route::get('gr/get', 'get');
+        Route::get('gr/get-batal', 'getBatal');
+        Route::get('gr/get-linkdata', 'getLinkData');
         Route::get('gr/get-listpo', 'getListPO');
         Route::post('gr/get-itempo', 'getItemPO');
         Route::get('gr/get-allref', 'getAllRef');
         Route::delete('gr', 'destroy');
+        Route::post('gr/set-batal', 'setBatal');
         Route::post('gr', 'store');
+    });
+    Route::controller(\Purchase\PurchaseInvoiceController::class)->group(function () {
+        Route::get('pi', 'show1');
+        Route::get('pi/all', 'show2');
+        Route::get('pi/get', 'get');
+        Route::get('pi/get-batal', 'getBatal');
+        Route::get('pi/get-linkdata', 'getLinkData');
+        Route::get('pi/get-listgr', 'getListGR');
+        Route::post('pi/get-itemgr', 'getItemGR');
+        Route::get('pi/get-invdp', 'getInvoiceDPRef');
+        Route::get('pi/get-allref', 'getAllRef');
+        Route::delete('pi', 'destroy');
+        Route::post('pi/set-batal', 'setBatal');
+        Route::post('pi', 'store');
+    });
+    Route::controller(\Purchase\PurchaseReturnController::class)->group(function () {
+        Route::get('pretur', 'show1');
+        Route::get('pretur/all', 'show2');
+        Route::get('pretur/get', 'get');
+        Route::get('pretur/get-batal', 'getBatal');
+        Route::post('pretur/get-itempi', 'getItemPI');
+        Route::get('pretur/get-allref', 'getAllRef');
+        Route::delete('pretur', 'destroy');
+        Route::post('pretur/set-batal', 'setBatal');
+        Route::post('pretur', 'store');
+    });
+});
+
+Route::group(['prefix' => 'inventory', 'as' => 'inventory', 'middleware' => 'appauth'], function () {
+    Route::controller(\Inventory\StockTransferController::class)->group(function () {
+        Route::get('st', 'show1');
+        Route::get('st/all', 'show2');
+        Route::get('st/get', 'get');
+        Route::get('st/get-batal', 'getBatal');
+        Route::get('st/get-linkdata', 'getLinkData');
+        Route::get('st/get-allref', 'getAllRef');
+        Route::delete('st', 'destroy');
+        Route::post('st/set-batal', 'setBatal');
+        Route::post('st', 'store');
+    });
+    Route::controller(\Inventory\StockTransferSendController::class)->group(function () {
+        Route::get('tsend', 'show1');
+        Route::get('tsend/all', 'show2');
+        Route::get('tsend/get', 'get');
+        Route::get('tsend/get-batal', 'getBatal');
+        Route::get('tsend/get-linkdata', 'getLinkData');
+        Route::get('tsend/get-list-request', 'getListRequest');
+        Route::post('tsend/get-item-request', 'getItemRequest');
+        Route::get('tsend/get-allref', 'getAllRef');
+        Route::post('tsend/get-stok-status', 'getStockStatus');
+        Route::delete('tsend', 'destroy');
+        Route::post('tsend/set-batal', 'setBatal');
+        Route::post('tsend', 'store');
+    });
+    Route::controller(\Inventory\StockTransferReceiveController::class)->group(function () {
+        Route::get('treceive', 'show1');
+        Route::get('treceive/all', 'show2');
+        Route::get('treceive/get', 'get');
+        Route::get('treceive/get-batal', 'getBatal');
+        Route::get('treceive/get-list-transfer', 'getListTransfer');
+        Route::post('treceive/get-item-transfer', 'getItemTransfer');
+        Route::get('treceive/get-allref', 'getAllRef');
+        Route::delete('treceive', 'destroy');
+        Route::post('treceive/set-batal', 'setBatal');
+        Route::post('treceive', 'store');
+    });
+    Route::controller(\Inventory\PembuanganController::class)->group(function () {
+        Route::get('buang', 'show1');
+        Route::get('buang/all', 'show2');
+        Route::get('buang/get', 'get');
+        Route::get('buang/get-batal', 'getBatal');
+        Route::get('buang/get-approved', 'getApproved');
+        Route::get('buang/get-allref', 'getAllRef');
+        Route::delete('buang', 'destroy');
+        Route::post('buang/set-batal', 'setBatal');
+        Route::post('buang/set-approved', 'setApproved');
+        Route::post('buang', 'store');
+    });
+});
+
+Route::group(['prefix' => 'sales', 'as' => 'sales', 'middleware' => 'appauth'], function () {
+    Route::controller(\Sales\SalesOrderController::class)->group(function () {
+        Route::get('so', 'show1');
+        Route::get('so/all', 'show2');
+        Route::get('so/get', 'get');
+        Route::get('so/get-harga', 'getHargaJual');
+        Route::get('so/get-customer', 'getCustomer');
+        Route::get('so/get-batal', 'getBatal');
+        Route::get('so/get-linkdata', 'getLinkData');
+        Route::get('so/get-allref', 'getAllRef');
+        Route::delete('so', 'destroy');
+        Route::post('so/set-batal', 'setBatal');
+        Route::post('so', 'store');
     });
 });

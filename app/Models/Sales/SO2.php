@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Models\Purchase;
+namespace App\Models\Sales;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PO2 extends Model
+class SO2 extends Model
 {
     use HasFactory;
-    protected $table = 't_po2';
+    protected $table = 't_so2';
     protected $primaryKey = 'dtl2_key';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;
@@ -29,6 +29,6 @@ class PO2 extends Model
         'rp_pajak'=>'float',
         'rp_harga_akhir'=>'float',
         'qty_sisa'=>'float',
-        'konversi'=>'float'
+        'sub_qty'=>'float'
     ];
 }

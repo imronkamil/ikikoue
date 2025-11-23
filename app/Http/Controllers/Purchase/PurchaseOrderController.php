@@ -16,9 +16,12 @@ use App\Models\Master\Lokasi;
 use App\Models\Master\Bahan;
 use App\Models\Master\BahanSatuan;
 use App\Models\Master\Account;
+use App\Models\Master\Pajak;
+use App\Models\Master\Supplier;
 use App\Models\Tools\DocNo;
 use App\Models\Tools\DocNoThn;
 use App\Http\Controllers\Tools\DocNoController;
+use App\Http\Controllers\Tools\UtilityController;
 
 class PurchaseOrderController extends Controller
 {
@@ -33,11 +36,12 @@ class PurchaseOrderController extends Controller
         ->leftJoin('t_pr2 as b','b.dtl2_key','=','a.base_ref')
         ->selectRaw('DISTINCT a.doc_key, b.doc_key AS pr_doc_key');
         //->groupBy('a.doc_key','b.doc_key');
-        $query1= DB::table('t_pr1 as a')
+        $query1= DB::table('t_po1 as a')
         ->joinSub($subQ1,'b', function ($join) {
             $join->on('a.doc_key','=','b.pr_doc_key');
         })
         ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_pr")
+        ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
         //->get();
 
@@ -50,6 +54,7 @@ class PurchaseOrderController extends Controller
             $join->on('a.doc_key','=','b.gr_doc_key');
         })
         ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_gr")
+        ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
 
         $data['t_po1']= PO1::from('t_po1 as a')
@@ -64,7 +69,12 @@ class PurchaseOrderController extends Controller
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
-            b.no_doc_pr, c.no_doc_gr")
+            b.no_doc_pr, c.no_doc_gr,
+            CASE WHEN a.enum_tipe_po='0' THEN 'Aktif'
+                 WHEN a.enum_tipe_po='1' THEN 'Closed'
+                 WHEN a.enum_tipe_po='2' THEN 'Sebagian'
+                 WHEN a.enum_tipe_po='3' THEN 'Kadaluarsa'
+                 WHEN a.enum_tipe_po='4' THEN 'Closed' END AS ket_enum_tipe_po")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         //->orderBy($sortBy,$sorting)
@@ -108,12 +118,37 @@ class PurchaseOrderController extends Controller
         return response()->success('Success',$data);
     }
 
+    public function getBatal(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        $data['t_po1']= PO1::from('t_po1 as a')
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
+        ->where("a.doc_key",$doc_key)
+        ->first();
+        $response['value']= ($data['t_po1']) ? $data['t_po1']->fl_batal : 'false';
+        return response()->success('Success',$response);
+    }
+
+    public function getLinkData(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        $data['t_po1']= PO1::from('t_po1 as a')
+        ->join('t_po2 as b','a.doc_key','=','b.doc_key')
+        ->join('t_gr2 as c','b.dtl2_key','=','c.base_ref')
+        ->join('t_gr1 as d','c.doc_key','=','d.doc_key')
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
+        ->where("a.doc_key",$doc_key)
+        ->where("d.fl_batal","false")
+        ->get();
+        $response['value']= (count($data['t_po1'])>0) ? 'true' : 'false';
+        return response()->success('Success',$response);
+    }
+
     public function getListPR(Request $request) {
-        $kd_partner=isset($request->kd_partner) ? $request->kd_partner : '0';
+        $kd_lokasi=isset($request->kd_lokasi) ? $request->kd_lokasi : '0';
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $subQ1= DB::table('t_pr2 as a')
         ->leftJoin('t_po2 as b','a.dtl2_key','=','b.base_ref')
-        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS po_doc_key');
+        ->selectRaw('a.doc_key, MAX(b.doc_key) AS po_doc_key')
+        ->groupBy('a.doc_key');
 
         $data['t_pr']= PR1::from('t_pr1 as a')
         ->joinSub($subQ1,'b', function ($join) {
@@ -121,7 +156,7 @@ class PurchaseOrderController extends Controller
         })
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.tgl_datang, a.kd_lokasi, a.kd_partner, a.nm_partner,
             a.rp_total, a.catatan, COALESCE(a.fl_batal,false) AS fl_cek")
-        ->where('a.kd_partner',$kd_partner)
+        ->where('a.kd_lokasi',$kd_lokasi)
         ->where(DB::raw('COALESCE(a.fl_batal,false)'),false)
         ->where(function ($query1) use ($doc_key) {
             $query1->where(DB::raw('COALESCE(a.fl_tutup,false)'),false)
@@ -138,7 +173,22 @@ class PurchaseOrderController extends Controller
 
     public function getItemPR(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : [];
-        $data['t_pr2']= PR1::from('t_pr1 as a')
+
+        //PR1
+        $data['t_pr1']= PR1::from('t_pr1 as a')
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
+            a.kd_partner, a.kd_kontak,
+            a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
+            a.rp_rounding, a.rp_total, a.rp_uangmuka, a.rp_bayar, a.rp_sisa,
+            a.tgl_datang, a.tgl_berlaku, a.kd_buyer, a.catatan, a.catatan_jurnal, a.enum_tipe_po,
+            a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds,
+            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
+            a.batal_tgl, a.batal_userid, a.batal_lokasi,
+            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
+        ->where("a.doc_key",$doc_key)
+        ->first();
+
+        $data['t_pr2']= PO1::from('t_pr1 as a')
         ->join('t_pr2 as b','a.doc_key','=','b.doc_key')
         ->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
         ->selectRaw("a.kd_partner, a.no_doc,
@@ -158,7 +208,7 @@ class PurchaseOrderController extends Controller
         ->whereIn('a.doc_key',$doc_key)
         ->get();
 
-        $data['t_pr3']= PR1::from('t_pr1 as a')
+        $data['t_pr3']= PO1::from('t_pr1 as a')
         ->join('t_pr3 as b','a.doc_key','=','b.doc_key')
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl3_key, b.doc_key, b.no_urut, b.no_account, b.nm_account, b.catatan,
@@ -193,7 +243,7 @@ class PurchaseOrderController extends Controller
         ->selectRaw("a.dtl2_key, a.doc_key, a.no_urut, a.kd_bahan, a.satuan, a.qty, a.rp_harga,
             a.persen_diskon, a.rp_diskon, a.persen_diskon2, a.rp_diskon2, a.persen_diskon3, a.rp_diskon3,
             a.persen_diskon4, a.rp_diskon4, a.kd_pajak, a.persen_pajak, a.rp_pajak, a.rp_harga_akhir,
-            a.qty_sisa, a.catatan, a.fl_tutup, a.base_type, a.base_ref, a.base_no_doc")
+            a.qty_sisa, a.catatan, a.fl_tutup, a.base_type, a.base_ref, a.base_no_doc, a.konversi, a.satuan_dasar")
         ->where("a.doc_key",$doc_key)
         ->orderBy("a.no_urut")
         ->get();
@@ -221,6 +271,7 @@ class PurchaseOrderController extends Controller
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
             a.kd_server, a.kd_lokasi_acc,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->orderBy("a.kd_lokasi","asc")
         ->get();
 
         //Master Bahan
@@ -232,6 +283,7 @@ class PurchaseOrderController extends Controller
             a.fl_jual, a.fl_beli, a.fl_stok, a.fl_pakai, a.fl_aktif, a.fl_harga_fix, a.fl_stock_transfer,
             a.bahan_klp_id, a.nm_bahan_barcode, a.plu_client,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->orderBy("a.kd_bahan")
         ->get();
 
         //Master Bahan Satuan
@@ -242,6 +294,15 @@ class PurchaseOrderController extends Controller
             a.rp_harga_jual, a.rp_harga_jual_min, a.rp_harga_jual_max, a.rp_harga_jual2, a.fl_pakai, a.fl_default,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             b.satuan AS satuan_dasar")
+        ->get();
+
+        //Master Pajak
+        $subPajak= DB::table(DB::raw("(SELECT CAST(NULL AS varchar(20)) AS kd_pajak,
+            '(null)'::varchar AS nm_pajak, 0 AS persen_pajak, 'true'::boolean AS fl_aktif) AS b"));
+        $data['m_pajak']= Pajak::from('m_pajak')
+        ->selectRaw("kd_pajak, nm_pajak, persen_pajak, fl_aktif")
+        ->unionAll($subPajak)
+        ->orderByRaw("kd_pajak NULLS FIRST")
         ->get();
 
         //Master Bahan Beli Filter
@@ -269,7 +330,7 @@ class PurchaseOrderController extends Controller
         ->get();
 
         //Master Supplier Filter
-        $data['m_supplier_filter']= Account::from('m_supplier as a')
+        $data['m_supplier_filter']= Supplier::from('m_supplier as a')
         ->selectRaw("a.kd_supplier, a.nm_supplier, a.alamat, a.kota, a.propinsi, a.kodepos, a.negara, a.contact,
             a.telp, a.fax, a.email, a.webpage, a.kd_term, a.kd_supplier_grup, a.notes, a.fl_aktif,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
@@ -283,53 +344,153 @@ class PurchaseOrderController extends Controller
 
     public function destroy(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        PO3::where('doc_key',$doc_key)->delete();
-        PO2::where('doc_key',$doc_key)->delete();
-        PO1::where('doc_key',$doc_key)->delete();
+        pr3::where('doc_key',$doc_key)->delete();
+        pr2::where('doc_key',$doc_key)->delete();
+        pr1::where('doc_key',$doc_key)->delete();
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }
 
-    public static function updateLinkData($doc_key = 0) {
-        //PR1
-        $list_pr1= PR1::from("t_pr1 as a")
-        ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
-        ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
-        ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
-        ->selectRaw("a.doc_key")
-        ->where("d.doc_key",$doc_key)
-        ->groupBy("a.doc_key")
-        ->get();
-        foreach($list_pr1 as $recTrans1) {
-            //PR2
-            $data_pr2= PR2::where("doc_key",$recTrans1->doc_key)->get();
+    public function setBatal(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        $catatan=isset($request->catatan) ? $request->catatan : '';
+        $po1= PO1::where('doc_key',$doc_key)->first();
+        if ($po1) {
+            if ($po1->fl_batal == 'true') {
+                $response['message'] = 'Data sudah dibatalkan';
+                return response()->success('Success',$response);
+            }
+            PurchaseOrderController::setLinkData($doc_key,FALSE);
+            //Update PO1
+            $po1->catatan = $catatan . "\n" . $po1->catatan;
+            $po1->fl_batal = 'true';
+            $po1->batal_tgl = date('Y-m-d H:i:s');
+            $po1->batal_userid = $request->userid;
+            $po1->batal_lokasi = $request->lokasi;
+            $po1->save();
+        }
+        $response['message'] = 'Batal data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function setLinkData($doc_key = 0, $insert = FALSE) {
+        if ($insert == FALSE) {
+            $pr_doc_key = 0;
+            $qty= 0;
             $qty_sisa= 0;
-            foreach($data_pr2 as $recTrans2) {
-                $qty_sisa = $qty_sisa + $recTrans2->qty_sisa;
-            }
-            //PR3
-            $data_pr3= PR3::where("doc_key",$recTrans1->doc_key)->get();
             $rp_sisa= 0;
-            foreach($data_pr3 as $recTrans3) {
-                $rp_sisa = $rp_sisa + $recTrans3->rp_sisa;
-            }
-            //Update PR1
-            $data_pr1= PR1::where("doc_key",$recTrans1->doc_key)->first();
-            if ($data_pr1) {
-                if($qty_sisa == 0 && $rp_sisa == 0) {
-                    $data_pr1->fl_tutup= TRUE;
-                } else {
-                    $data_pr1->fl_tutup= FALSE;
+            //PR1
+            $dataPR= PR1::from("t_pr1 as a")
+            ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
+            ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
+            ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
+            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->where("d.doc_key",$doc_key)
+            //->groupBy("a.doc_key")
+            ->get();
+            foreach($dataPR as $recPR) {
+                $pr_doc_key = $recPR->doc_key;
+                //Update PR2
+                $pr2 = PR2::where('dtl2_key',$recPR->dtl2_key)->first();
+                if ($pr2) {
+                    $pr2->qty_sisa = $pr2->qty_sisa + $recPR->qty;
+                    $pr2->save();
+                    $qty = $qty + $pr2->qty;
+                    $qty_sisa = $qty_sisa + $pr2->qty_sisa;
                 }
-                $data_pr1->save();
+                //Update PR3
+                $pr3 = PR3::where('dtl3_key',$recPR->dtl3_key)->first();
+                if ($pr3) {
+                    $pr3->rp_sisa = $pr3->rp_sisa + $recPR->rp_bayar;
+                    $pr3->save();
+                    $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                }
+            }
+
+            //Update PR1
+            $updPR1= PR1::where("doc_key",$pr_doc_key)->first();
+            if ($updPR1) {
+                if ($qty_sisa == 0 && $rp_sisa == 0) {
+                    $updPR1->fl_tutup= TRUE;
+                } else {
+                    $updPR1->fl_tutup= FALSE;
+                };
+                if ($qty_sisa == 0) {
+                    $updPR1->enum_tipe_po = 1; //Complete
+                } elseif ($qty_sisa == $qty) {
+                    $updPR1->enum_tipe_po = 0; //Aktif
+                } else {
+                    $updPR1->enum_tipe_po = 2; //Sebagian
+                }
+                $updPR1->save();
+            }
+        } elseif ($insert == TRUE) {
+            $pr_doc_key = 0;
+            $qty= 0;
+            $qty_sisa= 0;
+            $rp_sisa= 0;
+            //PR1
+            $dataPR1= PR1::from("t_pr1 as a")
+            ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
+            ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
+            ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
+            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->where("d.doc_key",$doc_key)
+            //->groupBy("a.doc_key")
+            ->get();
+            foreach($dataPR1 as $recPR1) {
+                $pr_doc_key = $recPR1->doc_key;
+                //Update PR2
+                $po2 = PR2::where('dtl2_key',$recPR1->dtl2_key)->first();
+                if ($po2) {
+                    $po2->qty_sisa = $po2->qty_sisa - $recPR1->qty;
+                    $po2->save();
+                    $qty = $qty + $po2->qty;
+                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                }
+                //Update PR3
+                $pr3 = PR3::where('dtl3_key',$recPR1->dtl3_key)->first();
+                if ($pr3) {
+                    $pr3->rp_sisa = $pr3->rp_sisa - $recPR1->rp_bayar;
+                    $pr3->save();
+                    $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                }
+            }
+
+            //Update PR1
+            $updPR1= PR1::where("doc_key",$pr_doc_key)->first();
+            if ($updPR1) {
+                if ($qty_sisa == 0 && $rp_sisa == 0) {
+                    $updPR1->fl_tutup= TRUE;
+                } else {
+                    $updPR1->fl_tutup= FALSE;
+                };
+                if ($qty_sisa == 0) {
+                    $updPR1->enum_tipe_po = 1; //Complete
+                } elseif ($qty_sisa == $qty) {
+                    $updPR1->enum_tipe_po = 0; //Aktif
+                } else {
+                    $updPR1->enum_tipe_po = 2; //Sebagian
+                }
+                $updPR1->save();
             }
         }
-        //var_dump($recTrans1->doc_key,$rp_sisa);
+        //var_dump($recPR1->doc_key,$rp_sisa);
+        $response['doc_key'] = $doc_key;
+        $response['pr_doc_key'] = $pr_doc_key;
+        $response['qty'] = $qty;
+        $response['qty_sisa'] = $qty_sisa;
+        $response['rp_sisa'] = $rp_sisa;
+        $response['message'] = 'Set link data berhasil';
+        return response()->success('Success',$response);
     }
 
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
+        $doc_key=isset($where['doc_key']) ? $where['doc_key'] : 0;
         $dataTrans1= $data['t_po1'];
         $dataTrans2= $data['t_po2'];
         $dataTrans3= $data['t_po3'];
@@ -346,6 +507,7 @@ class PurchaseOrderController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
+            PurchaseOrderController::setLinkData($doc_key, TRUE);
             $po1= PO1::where('doc_key',$where['doc_key'])->first();
             if (!($po1)) {
                 $po1= new PO1();
@@ -401,6 +563,13 @@ class PurchaseOrderController extends Controller
             $po1->save();
 
             //Data PO2
+            $existingIds = PO2::where('doc_key',$doc_key)->pluck('dtl2_key')->toArray();
+            $newIds = collect($dataTrans2)->pluck('dtl2_key')->filter()->toArray();
+            // Delete items that are not in request
+            $toDelete = array_diff($existingIds, $newIds);
+            PO2::whereIn('dtl2_key', $toDelete)->delete();
+
+            //Data PO2
             //PO2::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
             foreach($dataTrans2 as $recTrans2) {
                 $validator=Validator::make($recTrans2,[
@@ -413,13 +582,6 @@ class PurchaseOrderController extends Controller
 
                 if ($validator->fails()){
                     return response()->error('',501,$validator->errors()->first());
-                }
-
-                //Update PR2
-                $pr2 = PR2::where('dtl2_key',$recTrans2['base_ref'])->first();
-                if ($pr2) {
-                    $pr2->qty_sisa = $pr2->qty_sisa - $recTrans2['qty'];
-                    $pr2->save();
                 }
 
                 $po2 = PO2::where('dtl2_key',$recTrans2['dtl2_key'])->first();
@@ -451,8 +613,17 @@ class PurchaseOrderController extends Controller
                 $po2->base_type      = $recTrans2['base_type'];
                 $po2->base_ref       = $recTrans2['base_ref'];
                 $po2->base_no_doc    = $recTrans2['base_no_doc'];
+                $po2->konversi       = $recTrans2['konversi'];
+                $po2->satuan_dasar   = $recTrans2['satuan_dasar'];
                 $po2->save();
             }
+
+            //Data PO3
+            $existingIds = PO3::where('doc_key',$doc_key)->pluck('dtl3_key')->toArray();
+            $newIds = collect($dataTrans2)->pluck('dtl3_key')->filter()->toArray();
+            // Delete items that are not in request
+            $toDelete = array_diff($existingIds, $newIds);
+            PO3::whereIn('dtl3_key', $toDelete)->delete();
 
             //Data PO3
             //PO3::where('doc_key',$where['doc_key'])->delete(); //Hapus data existing
@@ -467,17 +638,10 @@ class PurchaseOrderController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
-                //Update PR3
-                $pr3 = PR3::where('dtl3_key',$recTrans3['base_ref'])->first();
-                if ($pr3) {
-                    $pr3->rp_sisa = $pr3->rp_sisa - $recTrans3['rp_bayar'];
-                    $pr3->save();
-                }
-
                 $po3 = PO3::where('dtl3_key',$recTrans3['dtl3_key'])->first();
                 if (!($po3)) {
                     $po3 = new PO3();
-                    $po3->dtl3_key = DocNoController::getDocKey('dtl3_key');
+                    $po3->dtl3_key = DocNoController::getDocKey('doc_key');
                 }
                 $po3->doc_key        = $po1->doc_key;
                 $po3->no_urut        = $recTrans3['no_urut'];
@@ -491,7 +655,7 @@ class PurchaseOrderController extends Controller
                 $po3->save();
             }
 
-            PurchaseOrderController::updateLinkData($po1->doc_key);
+            PurchaseOrderController::setLinkData($po1->doc_key, TRUE);
 
             DB::commit();
             $response['message'] = 'Simpan data berhasil';

@@ -1,19 +1,20 @@
 <?php
 
-namespace App\Models\Stok;
+namespace App\Models\Sales;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class StokFifoDtl extends Model
+class SO3 extends Model
 {
     use HasFactory;
-    protected $table = 'm_stok_fifo_dtl';
-    protected $primaryKey = 'stok_fifo_dtl_key';
-    protected $keyType = 'integer';
+    protected $table = 't_so3';
+    protected $primaryKey = 'dtl3_key';
+    protected $keyType = 'bigInteger';
     public $incrementing  = false;
     public $timestamps = false;
     protected $casts = [
-        'qty'=>'float',
+        'rp_bayar'=>'float',
+        'rp_sisa'=>'float'
     ];
 }

@@ -210,7 +210,7 @@ class BahanController extends Controller
         if ($request->kd_level=='0'){
             $kd_bahan=substr('00000'.(string)$kd_bahan,strlen('00000'.(string)$kd_bahan)-6,6);
         }
-        $response['message'] = $kd_bahan;
+        $response['value'] = $kd_bahan;
         return response()->success('Success',$response);
     }
 
