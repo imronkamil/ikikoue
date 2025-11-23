@@ -284,6 +284,68 @@ class UtilityController extends Controller
         return response()->success('Success',$data);
     }
 
+    public static function getObjectItem(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $user_type=isset($request->user_type) ? $request->user_type : '';
+        if ($user_type == '1') {
+            $subQ2 = DB::table('o_objects_item')
+                ->select('menu_id')
+                ->whereRaw('COALESCE(is_active, false) = false');
+            $subQ1 = DB::table('o_objects_item')
+                ->select('menu_id')
+                ->where('is_access', false)
+                ->whereNotIn('header_id', $subQ2)
+                ->where('is_active', true);
+            $data['o_objects_item'] = DB::table('o_objects_item as a')
+                ->leftJoin('m_hak_akses as b', 'a.kd_menu', '=', 'b.kd_menu')
+                ->select('a.*')
+                ->where(function ($q) use ($subQ1) {
+                    $q->whereIn('a.header_id', $subQ1)
+                    ->orWhere('a.header_id', 0);
+                })
+                ->where('a.is_active', true)
+                ->whereRaw('COALESCE(a.is_access, false) = false')
+                ->orderBy('a.menu_id')
+                ->get();
+        } else {
+            // --- Subquery #2: header_id NOT IN (...) ---
+            $subQ2 = DB::table('o_objects_item')
+                ->select('menu_id')
+                ->whereRaw('COALESCE(is_active, false) = false');
+            // --- Subquery #1: header_id IN (...) ---
+            $subQ1 = DB::table('o_objects_item')
+                ->select('menu_id')
+                ->where('is_access', false)
+                ->whereNotIn('header_id', $subQ2)
+                ->where('is_active', true);
+            // --- Main Query ---
+            $data['o_objects_item'] = DB::table('o_objects_item as a')
+                ->leftJoin('m_hak_akses as b', 'a.kd_menu', '=', 'b.kd_menu')
+                ->leftJoin('pas_users as c', function ($join) {
+                    $join->on('b.user_id', '=', 'c.user_id')
+                        ->orOn('b.user_id', '=', 'c.kd_grup');
+                })
+                ->select('a.*')
+                ->where(function ($q) use ($subQ1) {
+                    $q->whereIn('a.header_id', $subQ1)
+                    ->orWhere('a.header_id', 0);
+                })
+                ->where('a.is_active', true)
+                ->whereRaw('COALESCE(a.is_access, false) = false')
+                ->where(function ($q) use ($user_id) {
+                    $q->where('a.is_group', true)
+                    ->orWhere(function ($x) use ($user_id) {
+                        $x->where('c.user_id', $user_id)
+                            ->where('a.is_group', false);
+                    });
+                })
+                ->orderBy('a.menu_id')
+                ->get();
+        }
+
+        return response()->success('Success',$data);
+    }
+
     public function destroy(Request $request) {
         $doc_name=isset($request->doc_name) ? $request->doc_name : '';
         NoTran::where('doc_name',$doc_name)->delete();

@@ -16,8 +16,11 @@ class CustomerController extends Controller
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
         $data['m_customer']= Customer::from('m_customer  as a')
-        ->selectRaw("a.*")
+        ->leftJoin('m_customer_grup as b','a.kd_customer_grup','=','b.kd_customer_grup')
+        ->leftJoin('m_level_harga as c','a.kd_harga','=','c.kd_harga')
+        ->selectRaw("a.*, b.nm_customer_grup, c.nm_harga")
         ->orderBy("a.kd_customer","asc")
+        //->take(1000)
         ->get();
         return response()->success('Success',$data);
     }
