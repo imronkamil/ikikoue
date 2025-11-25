@@ -11,16 +11,16 @@ use App\Models\Master\Customer;
 class CustomerController extends Controller
 {
     public function show1(Request $request) {
-        $filter = $request->filter;
+        //$filter = $request->filter;
         //$limit = $request->limit;
-        $sorting = ($request->descending=="true") ? "desc" :"asc";
-        $sortBy = $request->sortBy;
+        //$sorting = ($request->descending=="true") ? "desc" :"asc";
+        //$sortBy = $request->sortBy;
         $data['m_customer']= Customer::from('m_customer  as a')
         ->leftJoin('m_customer_grup as b','a.kd_customer_grup','=','b.kd_customer_grup')
         ->leftJoin('m_level_harga as c','a.kd_harga','=','c.kd_harga')
         ->selectRaw("a.*, b.nm_customer_grup, c.nm_harga")
         ->orderBy("a.kd_customer","asc")
-        //->take(1000)
+        ->take(10000)
         ->get();
         return response()->success('Success',$data);
     }
