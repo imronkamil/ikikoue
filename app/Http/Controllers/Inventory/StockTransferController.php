@@ -217,7 +217,7 @@ class StockTransferController extends Controller
         //Master Lokasi
         $data['m_lokasi']= Lokasi::from('m_lokasi as a')
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
-            a.kd_server, a.kd_lokasi_acc,
+            a.kd_server, a.kd_lokasi_acc, a.kd_lokasi || ' - ' || a.nm_lokasi AS ket_lokasi,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->where("a.fl_aktif","true")
         ->orderBy("a.kd_lokasi","asc")

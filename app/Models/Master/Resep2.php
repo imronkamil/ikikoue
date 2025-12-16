@@ -1,19 +1,16 @@
 <?php
 
-namespace App\Models\Stok;
+namespace App\Models\Master;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class StokFifoDtl extends Model
+class Resep2 extends Model
 {
     use HasFactory;
-    protected $table = 'm_stok_fifo_dtl';
-    protected $primaryKey = 'stok_fifo_dtl_key';
+    protected $table = 'm_resep2';
+    protected $primaryKey = 'resep2_id';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;
     public $timestamps = false;
-    protected $casts = [
-        'qty'=>'float',
-    ];
 }

@@ -171,11 +171,43 @@ class PurchaseOrderController extends Controller
         return response()->success('Success',$data);
     }
 
-    public function getItemPR(Request $request) {
+    public function getListItemPR(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : [];
 
+        $data['t_pr']= PO1::from('t_pr1 as a')
+        ->join('t_pr2 as b','a.doc_key','=','b.doc_key')
+        ->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
+        ->leftJoin('t_po1 as e','c.doc_key','e.doc_key')
+        ->leftJoin('m_bahan as d','b.kd_bahan','d.kd_bahan')
+        ->selectRaw("a.kd_partner, a.no_doc,
+            b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
+            b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
+            b.persen_diskon4, b.rp_diskon4, b.kd_pajak, b.persen_pajak, b.rp_pajak, b.rp_harga_akhir,
+            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref, b.konversi, b.satuan_dasar,
+            c.doc_key AS doc_key_po, c.rp_harga AS rp_harga_po,
+            c.persen_diskon AS persen_diskon_po, c.rp_diskon AS rp_diskon_po,
+            c.persen_diskon2 AS persen_diskon2_po, c.rp_diskon2 AS rp_diskon2_po,
+            c.persen_diskon3 AS persen_diskon3_po, c.rp_diskon3 AS rp_diskon3_po,
+            c.persen_diskon4 AS persen_diskon4_po, c.rp_diskon4 AS rp_diskon4_po,
+            c.persen_pajak AS persen_pajak_po, c.rp_pajak AS rp_pajak_po,
+            c.rp_harga_akhir AS rp_harga_akhir_po, d.nm_bahan,
+            COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po,
+            COALESCE(a.fl_batal,false) AS fl_cek")
+        ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
+        ->where(DB::raw('COALESCE(e.fl_batal,false)'),'=','false')
+        ->whereIn('a.doc_key',$doc_key)
+        ->orderBy('a.doc_key')
+        ->orderBy('b.no_urut')
+        ->get();
+
+        return response()->success('Success',$data);
+    }
+
+    public function getItemPR(Request $request) {
+        $dtl2_key=isset($request->dtl2_key) ? $request->dtl2_key : [];
+
         //PR1
-        $data['t_pr1']= PR1::from('t_pr1 as a')
+        /*$data['t_pr1']= PR1::from('t_pr1 as a')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
@@ -185,17 +217,18 @@ class PurchaseOrderController extends Controller
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim")
-        ->where("a.doc_key",$doc_key)
-        ->first();
+        ->whereIn("b.dtl2_key",$dtl2_key)
+        ->first();*/
 
         $data['t_pr2']= PO1::from('t_pr1 as a')
         ->join('t_pr2 as b','a.doc_key','=','b.doc_key')
         ->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
+        ->leftJoin('t_po1 as e','c.doc_key','e.doc_key')
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
             b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
             b.persen_diskon4, b.rp_diskon4, b.kd_pajak, b.persen_pajak, b.rp_pajak, b.rp_harga_akhir,
-            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref,
+            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref, b.konversi, b.satuan_dasar,
             c.doc_key AS doc_key_po, c.rp_harga AS rp_harga_po,
             c.persen_diskon AS persen_diskon_po, c.rp_diskon AS rp_diskon_po,
             c.persen_diskon2 AS persen_diskon2_po, c.rp_diskon2 AS rp_diskon2_po,
@@ -205,17 +238,20 @@ class PurchaseOrderController extends Controller
             c.rp_harga_akhir AS rp_harga_akhir_po,
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
-        ->whereIn('a.doc_key',$doc_key)
+        ->where(DB::raw('COALESCE(e.fl_batal,false)'),'=','false')
+        ->whereIn("b.dtl2_key",$dtl2_key)
+        ->orderBy('a.doc_key')
+        ->orderBy('b.no_urut')
         ->get();
 
-        $data['t_pr3']= PO1::from('t_pr1 as a')
+        /*$data['t_pr3']= PO1::from('t_pr1 as a')
         ->join('t_pr3 as b','a.doc_key','=','b.doc_key')
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl3_key, b.doc_key, b.no_urut, b.no_account, b.nm_account, b.catatan,
             b.rp_bayar, b.rp_sisa, b.base_type, b.base_ref")
         ->where(DB::raw('COALESCE(b.rp_sisa,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
-        ->get();
+        ->get();*/
 
         return response()->success('Success',$data);
     }
@@ -269,8 +305,9 @@ class PurchaseOrderController extends Controller
         //Master Lokasi
         $data['m_lokasi']= Lokasi::from('m_lokasi as a')
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
-            a.kd_server, a.kd_lokasi_acc,
+            a.kd_server, a.kd_lokasi_acc, a.kd_lokasi || ' - ' || a.nm_lokasi AS ket_lokasi,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->where("a.fl_aktif","true")
         ->orderBy("a.kd_lokasi","asc")
         ->get();
 

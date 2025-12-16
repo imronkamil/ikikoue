@@ -27,6 +27,7 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('bahan', 'show1');
         Route::get('bahan/all', 'show2');
         Route::get('bahan/get', 'get');
+        Route::get('bahan/is-bahan', 'isBahan');
         Route::get('bahan/get-allref', 'getAllRef');
         Route::get('bahan/get-kodebaru', 'getKodeBahanBaru');
         Route::delete('bahan', 'destroy');
@@ -106,6 +107,8 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('supplier', 'show1');
         Route::get('supplier/all', 'show2');
         Route::get('supplier/get', 'get');
+        Route::get('supplier/is-supplier', 'isSupplier');
+        Route::get('supplier/get-allref', 'getAllRef');
         Route::delete('supplier', 'destroy');
         Route::post('supplier', 'store');
     });
@@ -134,8 +137,21 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('customer', 'show1');
         Route::get('customer/all', 'show2');
         Route::get('customer/get', 'get');
+        Route::get('customer/is-customer', 'isCustomer');
+        Route::get('customer/get-customer', 'getCustomer');
+        Route::get('customer/get-allref', 'getAllRef');
         Route::delete('customer', 'destroy');
         Route::post('customer', 'store');
+    });
+    Route::controller(\Master\ResepController::class)->group(function () {
+        Route::get('resep', 'show1');
+        Route::get('resep/all', 'show2');
+        Route::get('resep/get', 'get');
+        Route::get('resep/is-bahan', 'isBahan');
+        Route::get('resep/get-allref', 'getAllRef');
+        Route::get('resep/get-kodebaru', 'getKodeBahanBaru');
+        Route::delete('resep', 'destroy');
+        Route::post('resep', 'store');
     });
 });
 
@@ -188,6 +204,7 @@ Route::group(['prefix' => 'purchase', 'as' => 'purchase', 'middleware' => 'appau
         Route::get('po/get-batal', 'getBatal');
         Route::get('po/get-linkdata', 'getLinkData');
         Route::get('po/get-listpr', 'getListPR');
+        Route::post('po/get-list-itempr', 'getListItemPR');
         Route::post('po/get-itempr', 'getItemPR');
         Route::get('po/get-allref', 'getAllRef');
         Route::delete('po', 'destroy');
@@ -283,6 +300,33 @@ Route::group(['prefix' => 'inventory', 'as' => 'inventory', 'middleware' => 'app
         Route::post('buang/set-batal', 'setBatal');
         Route::post('buang/set-approved', 'setApproved');
         Route::post('buang', 'store');
+    });
+});
+
+Route::group(['prefix' => 'produksi', 'as' => 'produksi', 'middleware' => 'appauth'], function () {
+    Route::controller(\Produksi\PraProduksiController::class)->group(function () {
+        Route::get('pra-produksi', 'show1');
+        Route::get('pra-produksi/all', 'show2');
+        Route::get('pra-produksi/get', 'get');
+        Route::get('pra-produksi/get-batal', 'getBatal');
+        Route::get('pra-produksi/get-linkdata', 'getLinkData');
+        Route::get('pra-produksi/get-allref', 'getAllRef');
+        Route::get('pra-produksi/get-detail-resep', 'getDetailResep');
+        Route::delete('pra-produksi', 'destroy');
+        Route::post('pra-produksi/set-batal', 'setBatal');
+        Route::post('pra-produksi', 'store');
+    });
+    Route::controller(\Produksi\ProduksiController::class)->group(function () {
+        Route::get('produksi', 'show1');
+        Route::get('produksi/all', 'show2');
+        Route::get('produksi/get', 'get');
+        Route::get('produksi/get-batal', 'getBatal');
+        Route::get('produksi/get-linkdata', 'getLinkData');
+        Route::get('produksi/get-allref', 'getAllRef');
+        Route::get('produksi/get-detail-resep', 'getDetailResep');
+        Route::delete('produksi', 'destroy');
+        Route::post('produksi/set-batal', 'setBatal');
+        Route::post('produksi', 'store');
     });
 });
 

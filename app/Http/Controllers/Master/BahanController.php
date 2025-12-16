@@ -21,12 +21,12 @@ use App\Models\Master\Supplier;
 
 class BahanController extends Controller
 {
-    public function show1() {
+    public function show1(Request $request) {
         $filter = $request->filter;
         $limit = $request->limit;
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
-        $data= Bahan::from('m_bahan as a')
+        $data1= Bahan::from('m_bahan as a')
         ->leftJoin('m_grup_bahan as b','a.kd_grup_bahan','=','b.kd_grup_bahan')
         ->leftJoin('m_tipe_bahan as c','a.kd_tipe_bahan','=','c.kd_tipe_bahan')
         ->leftJoin('m_grup_perform as d','a.kd_grup_perform','=','d.kd_grup_perform')
@@ -52,17 +52,17 @@ class BahanController extends Controller
             f.rp_harga_beli AS rp_harga_beli_sat, g.rp_harga_jual AS rp_harga_jual_sat");
         if (!($filter=='')){
             $filter='%'.trim($filter).'%';
-            $data=$data->where(function($q) use ($filter) {
+            $data1=$data1->where(function($q) use ($filter) {
                     $q->where('a.kd_bahan','like',$filter)
                     ->orwhere('a.nm_bahan','like',$filter)
                     ->orwhere('a.nm_bahan','like',$filter);
             });
         }
-        $data['m_bahan']=$data->orderBy($sortBy,$sorting)->paginate($limit);
+        $data['m_bahan']=$data1->orderBy($sortBy,$sorting)->paginate($limit);
         return response()->success('Success',$data);
     }
 
-    public function show2() {
+    public function show2(Request $request) {
         $data['m_bahan']= Bahan::from('m_bahan as a')
         ->leftJoin('m_grup_bahan as b','a.kd_grup_bahan','=','b.kd_grup_bahan')
         ->leftJoin('m_tipe_bahan as c','a.kd_tipe_bahan','=','c.kd_tipe_bahan')
@@ -105,6 +105,16 @@ class BahanController extends Controller
         ->where('a.kd_bahan',$kd_bahan)
         ->first();
         return response()->success('Success',$data);
+    }
+
+    public function isBahan(Request $request) {
+        $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan : 0;
+        $bahan= Bahan::from('m_bahan  as a')
+        ->where("a.kd_bahan",$kd_bahan)
+        ->where("a.fl_pakai",'=','true')
+        ->exists();
+        $response= ['value' => $bahan ? 'false' : 'true'];
+        return response()->success('Success',$response);
     }
 
     public function getAllRef(Request $request) {
@@ -217,6 +227,8 @@ class BahanController extends Controller
     public function destroy(Request $request) {
         $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan :'';
         Bahan::where('kd_bahan',$kd_bahan)->delete();
+        BahanSatuan::where('kd_bahan',$kd_bahan)->delete();
+        HargaJual::where('kd_bahan',$kd_bahan)->delete();
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }

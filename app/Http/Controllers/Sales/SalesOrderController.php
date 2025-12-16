@@ -137,7 +137,8 @@ class SalesOrderController extends Controller
         $filter=Str::lower(isset($request->filter) ? $request->filter : '');
         $data['m_customer']= Customer::from('m_customer as a')
         ->leftJoin('m_customer_alamat as b','a.kd_customer','=','b.kd_customer')
-        ->selectRaw("a.kd_customer, a.nm_customer, b.kd_alamat, b.nm_alamat, b.alamat, b.contact, b.telp, b.fax,
+        ->selectRaw("a.kd_customer, a.nm_customer, a.kd_customer_grup,
+            b.kd_alamat, b.nm_alamat, b.alamat, b.contact, b.telp, b.fax,
             b.propinsi, b.kota, b.kecamatan, b.kelurahan, a.fl_ocp, a.nm_kontak_pengirim, a.telp AS telp_pengirim")
         ->where("a.fl_aktif","true")
         ->where(function ($query) use ($filter) {
@@ -386,8 +387,7 @@ class SalesOrderController extends Controller
                 //FIFO Header
                 $dataStokFifo= StokFifo::where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
                 if ($dataStokFifo) {
-                    $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand - ($recTrans->qty*$recTrans->konversi);
-                    $dataStokFifo->qty_in = $dataStokFifo->qty_in - ($recTrans->qty*$recTrans->konversi);
+                    $dataStokFifo->qty_used= $dataStokFifo->qty_used - ($recTrans->qty);
                     $dataStokFifo->save();
                     //FIFO Detail
                     $stokFifoKey = $dataStokFifo->stok_fifo_key;
@@ -605,9 +605,7 @@ class SalesOrderController extends Controller
                         SalesOrderController::updateStok($doc_key, FALSE);
                     }
                 }
-            }
-
-            if (!($so1)) {
+            } else {
                 $so1= new SO1();
                 $so1->doc_key = DocNoController::getDocKey('doc_key');
             }

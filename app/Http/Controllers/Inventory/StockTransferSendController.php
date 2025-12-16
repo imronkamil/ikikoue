@@ -221,7 +221,7 @@ class StockTransferSendController extends Controller
         //Master Lokasi
         $data['m_lokasi']= Lokasi::from('m_lokasi as a')
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
-            a.kd_server, a.kd_lokasi_acc,
+            a.kd_server, a.kd_lokasi_acc, a.kd_lokasi || ' - ' || a.nm_lokasi AS ket_lokasi,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->where("a.fl_aktif","true")
         ->orderBy("a.kd_lokasi","asc")
@@ -451,7 +451,7 @@ class StockTransferSendController extends Controller
                 //FIFO Header
                 $dataStokFifo= StokFifo::where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
                 if ($dataStokFifo) {
-                    $dataStokFifo->qty_used = $dataStokFifo->qty_used - ($recTrans->qty*$recTrans->konversi);
+                    $dataStokFifo->qty_used = $dataStokFifo->qty_used - ($recTrans->qty);
                     $dataStokFifo->save();
                     //FIFO Detail
                     $stokFifoKey = $dataStokFifo->stok_fifo_key;
@@ -540,6 +540,11 @@ class StockTransferSendController extends Controller
                         $dataStokFifoDtl->stok_fifo_key = $recStokFifo->stok_fifo_key;
                         $dataStokFifoDtl->qty = -$qtyStok;
                         $dataStokFifoDtl->save();
+
+                        //Update harga stock transfer2
+                        $recTrans->rp_harga = $recStokFifo->rp_harga;
+                        $recTrans->rp_total = $recTrans->rp_harga * $recTrans->qty;
+                        $recTrans->save();
                     } else {
                         break;
                     }
@@ -619,6 +624,11 @@ class StockTransferSendController extends Controller
                     $dataStokFifoDtl->stok_fifo_key = $dataStokFifoNew->stok_fifo_key;
                     $dataStokFifoDtl->qty = -$qtyStok;
                     $dataStokFifoDtl->save();
+
+                    //Update harga stock transfer2
+                    $recTrans->rp_harga = ($dataStokFifo) ? $dataStokFifo->rp_harga : 0;
+                    $recTrans->rp_total = $recTrans->rp_harga * $recTrans->qty;
+                    $recTrans->save();
                 }
             }
         }
@@ -659,9 +669,7 @@ class StockTransferSendController extends Controller
                 if (UtilityController::getAutoStok() == 'true') {
                     StockTransferSendController::updateStok($doc_key, FALSE);
                 }
-            }
-
-            if (!($stockTransferSend1)) {
+            } else {
                 $stockTransferSend1= new StockTransferSend1();
                 $stockTransferSend1->doc_key = DocNoController::getDocKey('doc_key');
             }

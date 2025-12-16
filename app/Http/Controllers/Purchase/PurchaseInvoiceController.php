@@ -337,8 +337,9 @@ class PurchaseInvoiceController extends Controller
         //Master Lokasi
         $data['m_lokasi']= Lokasi::from('m_lokasi as a')
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
-            a.kd_server, a.kd_lokasi_acc,
+            a.kd_server, a.kd_lokasi_acc, a.kd_lokasi || ' - ' || a.nm_lokasi AS ket_lokasi,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->where("a.fl_aktif","true")
         ->orderBy('a.kd_lokasi')
         ->get();
 
@@ -544,6 +545,78 @@ class PurchaseInvoiceController extends Controller
         //var_dump($recGR1->doc_key,$rp_sisa);
         //var_dump($qty,$qty_sisa,$rp_sisa);
         $response['gr_doc_key'] = $gr_doc_key;
+        $response['message'] = 'Set link data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function updateStok($doc_key = 0, $insert = FALSE) {
+        if ($insert == FALSE) {
+            //APInvoice1
+            $dataAPInv1= APInvoice1::from("t_ap_invoice1 as a")
+            ->leftJoin("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_gr2 as c","b.base_ref","=","c.dtl2_key")
+            ->selectRaw("a.doc_key, b.dtl2_key, b.qty, b.rp_harga, b.konversi, b.satuan_dasar, c.dtl2_key as dtl2_key_gr")
+            ->where("a.doc_key",$doc_key)
+            ->orderBy("a.doc_key")
+            ->get();
+            foreach($dataAPInv1 as $recAPInv1) {
+                //Update GR2
+                $gr2 = GR2::where('dtl2_key',$recAPInv1->dtl2_key_gr)->first();
+                if ($gr2) {
+                    $gr2->rp_harga = $recAPInv1->rp_harga;
+                    $gr2->rp_harga_akhir = $recAPInv1->rp_harga * $gr2->qty;
+                    $gr2->save();
+                }
+                $stokFifo = StokFifo::where('base_dtl2_key',$recAPInv1->dtl2_key_gr)->first();
+                if ($stokFifo) {
+                    $stokFifo->rp_harga = $recAPInv1->rp_harga;
+                    $stokFifo->save();
+                }
+            }
+            //var_dump($gr_doc_key,$qty,$qty_sisa,$rp_sisa);
+        } elseif ($insert == TRUE) {
+            //APInvoice1
+            $dataAPInv1= APInvoice1::from("t_ap_invoice1 as a")
+            ->leftJoin("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_gr2 as c","b.base_ref","=","c.dtl2_key")
+            ->selectRaw("a.doc_key, a.tgl_doc, b.dtl2_key, b.kd_bahan, b.qty, b.rp_harga,
+                b.konversi, b.satuan_dasar, c.dtl2_key as dtl2_key_gr")
+            ->where("a.doc_key",$doc_key)
+            ->orderBy("a.doc_key")
+            ->get();
+            foreach($dataAPInv1 as $recAPInv1) {
+                //Update GR2
+                $gr2 = GR2::where('dtl2_key',$recAPInv1->dtl2_key_gr)->first();
+                if ($gr2) {
+                    $gr2->rp_harga = $recAPInv1->rp_harga;
+                    $gr2->rp_harga_akhir = $recAPInv1->rp_harga * $gr2->qty;
+                    $gr2->save();
+                }
+                $stokFifo = StokFifo::where('base_dtl2_key',$recAPInv1->dtl2_key_gr)->first();
+                if ($stokFifo) {
+                    $stokFifo->rp_harga = $recAPInv1->rp_harga;
+                    $stokFifo->save();
+                }
+                //Bahan Satuan
+                $bahanSatuan= BahanSatuan::where("kd_bahan",$recAPInv1->kd_bahan)->get();
+                foreach($bahanSatuan as $recBahanSatuan) {
+                    if ($recBahanSatuan->tgl_beli_akhir <= $recAPInv1->tgl_doc) {
+                        $harga = $recAPInv1->rp_harga * ($recBahanSatuan->rasio/$recAPInv1->konversi);
+                        $recBahanSatuan->tgl_beli_akhir = $recAPInv1->tgl_doc;
+                        $recBahanSatuan->rp_harga_beli_akhir = $harga;
+                        if ($recBahanSatuan->rp_harga_beli_min > $harga || $recBahanSatuan->rp_harga_beli_min <= 0) {
+                            $recBahanSatuan->rp_harga_beli_min = $harga;
+                        }
+                        if ($recBahanSatuan->rp_harga_beli_max < $harga) {
+                            $recBahanSatuan->rp_harga_beli_max = $harga;
+                        }
+                        $recBahanSatuan->save();
+                    }
+                }
+            }
+            //var_dump($gr_doc_key,$qty,$qty_sisa,$rp_sisa);
+        }
+
         $response['message'] = 'Set link data berhasil';
         return response()->success('Success',$response);
     }
@@ -963,6 +1036,7 @@ class PurchaseInvoiceController extends Controller
 
             $user_id = isset($dataTrans1['update_userid']) ? $dataTrans1['update_userid'] : $dataTrans1['create_userid'];
             PurchaseInvoiceController::updateLinkData($apInvoice1->doc_key, TRUE);
+            PurchaseInvoiceController::updateStok($apInvoice1->doc_key, TRUE);
             PurchaseInvoiceController::generateJurnal($apInvoice1->doc_key, $user_id);
 
             DB::commit();

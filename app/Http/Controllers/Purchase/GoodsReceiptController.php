@@ -209,6 +209,7 @@ class GoodsReceiptController extends Controller
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
+        ->orderBy('b.no_urut')
         ->get();
 
         $data['t_po3']= PO1::from('t_po1 as a')
@@ -218,6 +219,7 @@ class GoodsReceiptController extends Controller
             b.rp_bayar, b.rp_sisa, b.base_type, b.base_ref")
         ->where(DB::raw('COALESCE(b.rp_sisa,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
+        ->orderBy('b.no_urut')
         ->get();
 
         return response()->success('Success',$data);
@@ -274,8 +276,9 @@ class GoodsReceiptController extends Controller
         //Master Lokasi
         $data['m_lokasi']= Lokasi::from('m_lokasi as a')
         ->selectRaw("a.kd_lokasi, a.nm_lokasi, a.fl_pusat, a.fl_lokasi, a.fl_aktif, a.fl_account, a.fl_stok, a.fl_hold,
-            a.kd_server, a.kd_lokasi_acc,
+            a.kd_server, a.kd_lokasi_acc, a.kd_lokasi || ' - ' || a.nm_lokasi AS ket_lokasi,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->where("a.fl_aktif","true")
         ->orderBy('a.kd_lokasi')
         ->get();
 
@@ -587,6 +590,22 @@ class GoodsReceiptController extends Controller
                 $dataStokFifoDtl->base_doc_key = $recTrans->doc_key;
                 $dataStokFifoDtl->base_dtl2_key = $recTrans->dtl2_key;
                 $dataStokFifoDtl->save();
+                //Bahan Satuan
+                $bahanSatuan= BahanSatuan::where("kd_bahan",$recTrans->kd_bahan)->get();
+                foreach($bahanSatuan as $recBahanSatuan) {
+                    if ($recBahanSatuan->tgl_beli_akhir <= $recTrans->tgl_doc) {
+                        $harga = $recTrans->rp_harga * ($recBahanSatuan->rasio/$recTrans->konversi);
+                        $recBahanSatuan->tgl_beli_akhir = $recTrans->tgl_doc;
+                        $recBahanSatuan->rp_harga_beli_akhir = $harga;
+                        if ($recBahanSatuan->rp_harga_beli_min > $harga || $recBahanSatuan->rp_harga_beli_min <= 0) {
+                            $recBahanSatuan->rp_harga_beli_min = $harga;
+                        }
+                        if ($recBahanSatuan->rp_harga_beli_max < $harga) {
+                            $recBahanSatuan->rp_harga_beli_max = $harga;
+                        }
+                        $recBahanSatuan->save();
+                    }
+                }
             }
         }
         //var_dump($recPO1->doc_key,$rp_sisa);
@@ -620,9 +639,7 @@ class GoodsReceiptController extends Controller
                 if (UtilityController::getAutoStok() == 'true') {
                     GoodsReceiptController::updateStok($doc_key, FALSE);
                 }
-            }
-
-            if (!($gr1)) {
+            } else {
                 $gr1= new GR1();
                 $gr1->doc_key = DocNoController::getDocKey('doc_key');
             }
