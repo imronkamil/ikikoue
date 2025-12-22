@@ -184,20 +184,10 @@ class ResepController extends Controller
         return response()->success('Success',$data);
     }
 
-    public function getKodeBahanBaru(Request $request) {
-        $kd_bahan=Resep1::where('kd_level',$request->kd_level)->max('kd_bahan')+1;
-        if ($request->kd_level=='0'){
-            $kd_bahan=substr('00000'.(string)$kd_bahan,strlen('00000'.(string)$kd_bahan)-6,6);
-        }
-        $response['value'] = $kd_bahan;
-        return response()->success('Success',$response);
-    }
-
     public function destroy(Request $request) {
         $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan :'';
-        Resep1::where('kd_bahan',$kd_bahan)->delete();
-        BahanSatuan::where('kd_bahan',$kd_bahan)->delete();
-        HargaJual::where('kd_bahan',$kd_bahan)->delete();
+        Resep2::where('kd_bahan_resep',$kd_bahan)->delete();
+        Resep1::where('kd_bahan_resep',$kd_bahan)->delete();
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }
