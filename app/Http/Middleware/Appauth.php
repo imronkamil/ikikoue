@@ -23,13 +23,12 @@ class Appauth
     public function handle($request, Closure $next)
     {
         $allowed = false;
-        $jwt     = $request->header('x_jwt');
+        $jwt     = $request->header('x-jwt');
         $db      = $request->header('database');
-        $ip      = request()->ip();
-
-        $database=$request->input('database');
+        $ip      = ($request->header('hostname') == null) ? $request->ip() : $request->header('hostname');
 
         // Set tenant connection dynamically
+        Config::set('database.connections.tenant.host', $ip);
         Config::set('database.connections.tenant.database', $db);
 
         // Reconnect with new DB

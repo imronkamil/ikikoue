@@ -16,9 +16,11 @@ class UserController extends Controller
     public function store_auth(Request $request) {
 
         $database=$request->input('database');
+        $hostname=($request->input('hostname') == null) ? $request->ip() : $request->input('hostname');
 
         // Set tenant connection dynamically
         Config::set('database.connections.tenant.database', $database);
+        Config::set('database.connections.tenant.host', $hostname);
 
         // Reconnect with new DB
         DB::purge('tenant');

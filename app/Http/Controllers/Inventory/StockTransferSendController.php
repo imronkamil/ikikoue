@@ -200,7 +200,7 @@ class StockTransferSendController extends Controller
         ->first();
 
         //StockTransferSend2
-        $data['t_stock_transfer_send2']= StockTransfer2::from('t_stock_transfer_send2 as a')
+        $data['t_stock_transfer_send2']= StockTransferSend2::from('t_stock_transfer_send2 as a')
         ->selectRaw("a.dtl2_key, a.doc_key, a.no_urut, a.kd_bahan, a.satuan, a.qty_req, a.qty, a.qty_sisa,
             a.rp_harga, a.rp_total, a.catatan, a.no_account, a.stok_fifo_key, a.base_type, a.base_ref, a.base_no_doc,
             a.qty_sisa, a.fl_tutup, a.konversi, a.satuan_dasar, a.qty-COALESCE(a.qty_sisa,0) AS qty_max")

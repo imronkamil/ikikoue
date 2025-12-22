@@ -301,6 +301,21 @@ Route::group(['prefix' => 'inventory', 'as' => 'inventory', 'middleware' => 'app
         Route::post('buang/set-approved', 'setApproved');
         Route::post('buang', 'store');
     });
+    Route::controller(\Inventory\KoreksiStokController::class)->group(function () {
+        Route::get('koreksi', 'show1');
+        Route::get('koreksi/all', 'show2');
+        Route::get('koreksi/get', 'get');
+        Route::get('koreksi/get-batal', 'getBatal');
+        Route::get('koreksi/get-approved', 'getApproved');
+        Route::get('koreksi/get-listopname', 'getListOpname');
+        Route::post('koreksi/get-list-itemopname', 'getListItemOpname');
+        Route::post('koreksi/get-itemopname', 'getItemOpname');
+        Route::get('koreksi/get-allref', 'getAllRef');
+        Route::delete('koreksi', 'destroy');
+        Route::post('koreksi/set-batal', 'setBatal');
+        Route::post('koreksi/set-approved', 'setApproved');
+        Route::post('koreksi', 'store');
+    });
 });
 
 Route::group(['prefix' => 'produksi', 'as' => 'produksi', 'middleware' => 'appauth'], function () {
