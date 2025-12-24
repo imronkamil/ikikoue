@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\Inventory\Koreksi1;
 use App\Models\Inventory\Koreksi2;
+use App\Models\Inventory\Koreksi2Fifo;
 use App\Models\Inventory\Opname1;
 use App\Models\Inventory\Opname2;
 use App\Models\Master\Lokasi;
@@ -225,7 +226,7 @@ class KoreksiStokController extends Controller
         ->get();
 
         //Master Bahan
-        $data['m_bahan']= Bahan::from('m_bahan as a')
+        /*$data['m_bahan']= Bahan::from('m_bahan as a')
         ->selectRaw("a.kd_bahan, a.nm_bahan, a.nm_bahan2, a.satuan, a.satuan2, a.konversi2,
             a.kd_grup_bahan, a.kd_tipe_bahan, a.kd_pajak_jual, a.kd_pajak_beli, a.kd_rak, a.barcode,
             a.isi, a.catatan, a.kd_level,
@@ -234,7 +235,7 @@ class KoreksiStokController extends Controller
             a.bahan_klp_id, a.nm_bahan_barcode, a.plu_client,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->orderBy('a.nm_bahan')
-        ->get();
+        ->get();*/
 
         //Master Bahan Satuan
         $data['m_bahan_satuan']= BahanSatuan::from('m_bahan_satuan as a')
@@ -321,8 +322,10 @@ class KoreksiStokController extends Controller
             $koreksi1->approved_lokasi = $request->lokasi;
             $koreksi1->save();
             //Update stok
-            KoreksiStokController::updateStok($doc_key,TRUE);
+            $resp=KoreksiStokController::updateStok($doc_key,TRUE);
         }
+        //$response['koreksi1'] = $koreksi1;
+        //$response['resp'] = $resp;
         $response['message'] = 'Approve data berhasil';
         return response()->success('Success',$response);
     }
@@ -476,7 +479,7 @@ class KoreksiStokController extends Controller
             ->orderBy("b.no_urut")
             ->get();
             foreach($dataKoreksiMinus as $recKoreksiMinus) {
-                $qty= $recKoreksiMinus->qty * $recKoreksiMinus->konversi;
+                $qty= abs($recKoreksiMinus->qty_selisih);
                 //FIFO Header
                 $dataStokFifo= StokFifo::where("kd_lokasi",$recKoreksiMinus->kd_lokasi)
                     ->where("kd_bahan",$recKoreksiMinus->kd_bahan)
@@ -494,23 +497,22 @@ class KoreksiStokController extends Controller
                             $qtyStok= $recStokFifo->qty_on_hand - $recStokFifo->qty_used;
                             $qty= $qty - $qtyStok;
                         }
-                        //KoreksiStok2Fifo
-                        $dataKoreksiStok2Fifo= KoreksiStok2Fifo::where("doc_key",$recKoreksiMinus->doc_key)
+                        //Koreksi2Fifo
+                        $dataKoreksi2Fifo= Koreksi2Fifo::where("doc_key",$recKoreksiMinus->doc_key)
                             ->where("dtl2_key",$recKoreksiMinus->dtl2_key)
                             ->where("stok_fifo_key",$recStokFifo->stok_fifo_key)
                             ->first();
-                        if (!$dataKoreksiStok2Fifo) {
-                            $dataKoreksiStok2Fifo= new KoreksiStok2Fifo();
-                            $dataKoreksiStok2Fifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
+                        if (!$dataKoreksi2Fifo) {
+                            $dataKoreksi2Fifo= new Koreksi2Fifo();
+                            $dataKoreksi2Fifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
                         }
-                        $dataKoreksiStok2Fifo->doc_key = $recKoreksiMinus->doc_key;
-                        $dataKoreksiStok2Fifo->dtl2_key = $recKoreksiMinus->dtl2_key;
-                        $dataKoreksiStok2Fifo->kd_bahan = $recKoreksiMinus->kd_bahan;
-                        $dataKoreksiStok2Fifo->satuan = $recKoreksiMinus->satuan_dasar;
-                        $dataKoreksiStok2Fifo->qty = $qtyStok;
-                        $dataKoreksiStok2Fifo->stok_fifo_key = $recStokFifo->stok_fifo_key;
-                        $dataKoreksiStok2Fifo->save();
-
+                        $dataKoreksi2Fifo->doc_key = $recKoreksiMinus->doc_key;
+                        $dataKoreksi2Fifo->dtl2_key = $recKoreksiMinus->dtl2_key;
+                        $dataKoreksi2Fifo->kd_bahan = $recKoreksiMinus->kd_bahan;
+                        $dataKoreksi2Fifo->satuan = $recKoreksiMinus->satuan_dasar;
+                        $dataKoreksi2Fifo->qty = $qtyStok;
+                        $dataKoreksi2Fifo->stok_fifo_key = $recStokFifo->stok_fifo_key;
+                        $dataKoreksi2Fifo->save();
                         //StokFIFO Detail
                         $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recKoreksiMinus->kd_lokasi)
                             ->where("kd_bahan",$recKoreksiMinus->kd_bahan)
@@ -528,23 +530,111 @@ class KoreksiStokController extends Controller
                         $dataStokFifoDtl->tgl_doc = $recKoreksiMinus->tgl_doc;
                         $dataStokFifoDtl->no_doc = $recKoreksiMinus->no_doc;
                         $dataStokFifoDtl->base_type = $docTrans;
-                        $dataStokFifoDtl->base_doc_key = $recTrans->doc_key;
-                        $dataStokFifoDtl->base_dtl2_key = $recTrans->dtl2_key;
+                        $dataStokFifoDtl->base_doc_key = $recKoreksiMinus->doc_key;
+                        $dataStokFifoDtl->base_dtl2_key = $recKoreksiMinus->dtl2_key;
                         $dataStokFifoDtl->stok_fifo_key = $recStokFifo->stok_fifo_key;
                         $dataStokFifoDtl->qty = -$qtyStok;
                         $dataStokFifoDtl->save();
 
                         //Update harga stock transfer2
-                        $recTrans->rp_harga = $recStokFifo->rp_harga;
-                        $recTrans->rp_total = $recTrans->rp_harga * $recTrans->qty;
-                        $recTrans->save();
+                        /*$recKoreksiMinus->rp_harga = $recStokFifo->rp_harga;
+                        $recKoreksiMinus->rp_total = $recKoreksiMinus->rp_harga * $recKoreksiMinus->qty;
+                        $recKoreksiMinus->save();*/
                     } else {
                         break;
                     }
                 }
+
+                if ($qty>0) {
+                    //Stok FIFO Header
+                    $dataStokFifo= StokFifo::where("kd_lokasi",$recKoreksiMinus->kd_lokasi)
+                        ->where("kd_bahan",$recKoreksiMinus->kd_bahan)
+                        ->where("satuan",$recKoreksiMinus->satuan_dasar)
+                        ->where("qty_on_hand",">",0)
+                        ->where("rp_harga",">",0)
+                        ->orderBy("tgl_doc","desc")
+                        ->orderBy("stok_fifo_key","desc")
+                        ->first();
+                    if(!$dataStokFifo) {
+                        $dataStokFifo= StokFifo::where("kd_lokasi",$recKoreksiMinus->kd_lokasi)
+                            ->where("kd_bahan",$recKoreksiMinus->kd_bahan)
+                            ->where("satuan",$recKoreksiMinus->satuan_dasar)
+                            ->where("rp_harga",">",0)
+                            ->orderBy("tgl_doc","desc")
+                            ->orderBy("stok_fifo_key","desc")
+                            ->first();
+                    }
+                    $qtyStok= $qty;
+                    //New StokFIFO Header
+                    $dataStokFifoNew= new StokFifo();
+                    $dataStokFifoNew->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
+                    $dataStokFifoNew->kd_bahan = $recKoreksiMinus->kd_bahan;
+                    $dataStokFifoNew->satuan = $recKoreksiMinus->satuan_dasar;
+                    $dataStokFifoNew->kd_lokasi = $recKoreksiMinus->kd_lokasi;
+                    $dataStokFifoNew->tgl_doc = $recKoreksiMinus->tgl_doc;
+                    $dataStokFifoNew->qty_on_hand = 0;
+                    $dataStokFifoNew->qty_in = 0;
+                    $dataStokFifoNew->qty_used = $qtyStok;
+                    $dataStokFifoNew->rp_harga = ($dataStokFifo) ? $dataStokFifo->rp_harga : 0;
+                    $dataStokFifoNew->base_type = $docTrans;
+                    $dataStokFifoNew->base_doc_key = $recKoreksiMinus->doc_key;
+                    $dataStokFifoNew->base_dtl2_key = $recKoreksiMinus->dtl2_key;
+                    $dataStokFifoNew->save();
+                    //Koreksi2Fifo
+                    $dataKoreksi2Fifo= Koreksi2Fifo::where("doc_key",$recKoreksiMinus->doc_key)
+                        ->where("dtl2_key",$recKoreksiMinus->dtl2_key)
+                        ->where("stok_fifo_key",$dataStokFifoNew->stok_fifo_key)
+                        ->first();
+                    if (!$dataKoreksi2Fifo) {
+                        $dataKoreksi2Fifo= new Koreksi2Fifo();
+                        $dataKoreksi2Fifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
+                    }
+                    $dataKoreksi2Fifo->doc_key = $recKoreksiMinus->doc_key;
+                    $dataKoreksi2Fifo->dtl2_key = $recKoreksiMinus->dtl2_key;
+                    $dataKoreksi2Fifo->kd_bahan = $recKoreksiMinus->kd_bahan;
+                    $dataKoreksi2Fifo->satuan = $recKoreksiMinus->satuan_dasar;
+                    $dataKoreksi2Fifo->qty = $qtyStok;
+                    $dataKoreksi2Fifo->stok_fifo_key = $dataStokFifoNew->stok_fifo_key;
+                    $dataKoreksi2Fifo->save();
+
+                    //StokFIFO Detail
+                    $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recKoreksiMinus->kd_lokasi)
+                        ->where("kd_bahan",$recKoreksiMinus->kd_bahan)
+                        ->where("satuan",$recKoreksiMinus->satuan_dasar)
+                        ->where("base_type",$docTrans)
+                        ->where("base_doc_key",$recKoreksiMinus->doc_key)
+                        ->where("base_dtl2_key",$recKoreksiMinus->dtl2_key)->first();
+                    if (!$dataStokFifoDtl) {
+                        $dataStokFifoDtl= new StokFifoDtl();
+                        $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
+                    }
+                    $dataStokFifoDtl->kd_bahan = $recKoreksiMinus->kd_bahan;
+                    $dataStokFifoDtl->satuan = $recKoreksiMinus->satuan_dasar;
+                    $dataStokFifoDtl->kd_lokasi = $recKoreksiMinus->kd_lokasi;
+                    $dataStokFifoDtl->tgl_doc = $recKoreksiMinus->tgl_doc;
+                    $dataStokFifoDtl->no_doc = $recKoreksiMinus->no_doc;
+                    $dataStokFifoDtl->base_type = $docTrans;
+                    $dataStokFifoDtl->base_doc_key = $recKoreksiMinus->doc_key;
+                    $dataStokFifoDtl->base_dtl2_key = $recKoreksiMinus->dtl2_key;
+                    $dataStokFifoDtl->stok_fifo_key = $dataStokFifoNew->stok_fifo_key;
+                    $dataStokFifoDtl->qty = -$qtyStok;
+                    $dataStokFifoDtl->save();
+
+                    //Update harga koreksi2fifo
+                    /*$recKoreksiMinus->rp_harga = ($dataStokFifo) ? $dataStokFifo->rp_harga : 0;
+                    $recKoreksiMinus->rp_total = $recKoreksiMinus->rp_harga * $recKoreksiMinus->qty;
+                    $recKoreksiMinus->save();*/
+                }
             }
         }
         //var_dump($recPO1->doc_key,$rp_sisa);
+        //$response['koreksi'] = $dataKoreksi;
+        //$response['minus'] = $dataKoreksiMinus;
+        //$response['dsfifo'] = $dataStokFifo;
+        //$response['dsfifonew'] = $dataStokFifoNew;
+        //$response['qty'] = $qty;
+        $response['message'] = 'Approve data berhasil';
+        return response()->success('Success',$response);
     }
 
     public function store(Request $request) {

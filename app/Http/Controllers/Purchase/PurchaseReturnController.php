@@ -278,15 +278,21 @@ class PurchaseReturnController extends Controller
 
         //Master Bahan Beli Filter
         $data['m_bahan_beli_filter']= Bahan::from('m_bahan as a')
+        ->leftJoin('m_bahan_satuan as b', function ($join) {
+            $join->on('a.kd_bahan', '=', 'b.kd_bahan')
+                 ->on('a.satuan_beli', '=', 'b.satuan');
+        })
         ->selectRaw("a.kd_bahan, a.nm_bahan, a.nm_bahan2, a.satuan, a.satuan2, a.konversi2,
             a.kd_grup_bahan, a.kd_tipe_bahan, a.kd_pajak_jual, a.kd_pajak_beli, a.kd_rak, a.barcode,
             a.isi, a.catatan, a.kd_level,
             a.satuan_beli, a.satuan_jual, a.satuan_report,
             a.fl_jual, a.fl_beli, a.fl_stok, a.fl_pakai, a.fl_aktif, a.fl_harga_fix, a.fl_stock_transfer,
             a.bahan_klp_id, a.nm_bahan_barcode, a.plu_client,
-            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
-        ->where("fl_aktif","true")
-        ->where("fl_beli","true")
+            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
+            b.rp_harga_beli as rp_harga_beli_satuan, b.persen_beli as persen_beli_satuan,
+            b.rp_harga_beli_akhir as rp_harga_beli_akhir_satuan")
+        ->where("a.fl_aktif","true")
+        ->where("a.fl_beli","true")
         ->orderBy("a.kd_bahan")
         ->get();
 
