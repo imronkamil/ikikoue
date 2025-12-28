@@ -360,3 +360,20 @@ Route::group(['prefix' => 'sales', 'as' => 'sales', 'middleware' => 'appauth'], 
         Route::post('so', 'store');
     });
 });
+
+Route::group(['prefix' => 'finance', 'as' => 'finance', 'middleware' => 'appauth'], function () {
+    Route::controller(\Finance\BankTerimaController::class)->group(function () {
+        Route::get('bank-terima', 'show1');
+        Route::get('bank-terima/all', 'show2');
+        Route::get('bank-terima/get', 'get');
+        Route::get('bank-terima/get-sobayar', 'getSOBayar');
+        Route::get('bank-terima/get-posbayar', 'getPOSBayar');
+        Route::get('bank-terima/get-batal', 'getBatal');
+        Route::get('bank-terima/get-approved', 'getApproved');
+        Route::get('bank-terima/get-allref', 'getAllRef');
+        Route::delete('bank-terima', 'destroy');
+        Route::post('bank-terima/set-batal', 'setBatal');
+        Route::post('bank-terima/set-approved', 'setApproved');
+        Route::post('bank-terima', 'store');
+    });
+});
