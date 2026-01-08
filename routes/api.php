@@ -123,6 +123,7 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('paket', 'show1');
         Route::get('paket/all', 'show2');
         Route::get('paket/get', 'get');
+        Route::get('paket/get-allref', 'getAllRef');
         Route::delete('paket', 'destroy');
         Route::post('paket', 'store');
     });
@@ -147,6 +148,7 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::get('resep', 'show1');
         Route::get('resep/all', 'show2');
         Route::get('resep/get', 'get');
+        Route::get('resep/get-detail', 'getResepDetail');
         Route::get('resep/is-bahan', 'isBahan');
         Route::get('resep/get-allref', 'getAllRef');
         Route::get('resep/get-kodebaru', 'getKodeBahanBaru');

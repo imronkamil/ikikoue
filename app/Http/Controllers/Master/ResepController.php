@@ -118,6 +118,16 @@ class ResepController extends Controller
         return response()->success('Success',$data);
     }
 
+    public function getResepDetail(Request $request) {
+        $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan :'';
+        $data['m_resep2']= Resep2::from('m_resep2  as a')
+        ->selectRaw("a.*")
+        ->where('a.kd_bahan_resep',$kd_bahan)
+        ->orderBy('a.no_urut','asc')
+        ->get();
+        return response()->success('Success',$data);
+    }
+
     public function isBahan(Request $request) {
         $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan : 0;
         $bahan= Resep1::from('m_bahan  as a')
