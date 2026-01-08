@@ -23,7 +23,7 @@ class CustomerController extends Controller
         $data['m_customer']= Customer::from('m_customer  as a')
         ->leftJoin('m_customer_grup as b','a.kd_customer_grup','=','b.kd_customer_grup')
         ->leftJoin('m_level_harga as c','a.kd_harga','=','c.kd_harga')
-        ->selectRaw("a.*, b.nm_customer_grup, c.nm_harga")
+        ->selectRaw("a.*, b.nm_customer_grup, b.no_account, c.nm_harga")
         ->orderBy("a.kd_customer","desc")
         //->take(15000)
         ->get();
@@ -32,7 +32,8 @@ class CustomerController extends Controller
 
     public function show2() {
         $data['m_customer'] = Customer::from('m_customer  as a')
-        ->selectRaw("a.*")
+        ->leftJoin('m_customer_grup as b','a.kd_customer_grup','=','b.kd_customer_grup')
+        ->selectRaw("a.*, b.nm_customer_grup, b.no_account")
         ->orderBy("a.kd_customer","desc")
         ->get();
         return response()->success('Success',$data);
@@ -41,7 +42,8 @@ class CustomerController extends Controller
     public function get(Request $request) {
         $kd_customer=isset($request->kd_customer) ? $request->kd_customer : 0;
         $data['m_customer'] = Customer::from('m_customer  as a')
-        ->selectRaw("*")
+        ->leftJoin('i_docno as b','a.nm_docno','=','b.nm_docno')
+        ->selectRaw("a.*, b.docno_id")
         ->where("a.kd_customer",$kd_customer)
         ->first();
         return response()->success('Success',$data);

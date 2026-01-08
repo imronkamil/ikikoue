@@ -354,6 +354,7 @@ Route::group(['prefix' => 'sales', 'as' => 'sales', 'middleware' => 'appauth'], 
         Route::get('so/get-customer', 'getCustomer');
         Route::get('so/get-batal', 'getBatal');
         Route::get('so/get-linkdata', 'getLinkData');
+        Route::get('so/get-sodp', 'getSODPRef');
         Route::get('so/get-allref', 'getAllRef');
         Route::delete('so', 'destroy');
         Route::post('so/set-batal', 'setBatal');
@@ -368,6 +369,7 @@ Route::group(['prefix' => 'finance', 'as' => 'finance', 'middleware' => 'appauth
         Route::get('bank-terima/get', 'get');
         Route::get('bank-terima/get-sobayar', 'getSOBayar');
         Route::get('bank-terima/get-posbayar', 'getPOSBayar');
+        Route::get('bank-terima/get-apdeposit', 'getAPDeposit');
         Route::get('bank-terima/get-batal', 'getBatal');
         Route::get('bank-terima/get-approved', 'getApproved');
         Route::get('bank-terima/get-allref', 'getAllRef');
@@ -375,5 +377,42 @@ Route::group(['prefix' => 'finance', 'as' => 'finance', 'middleware' => 'appauth
         Route::post('bank-terima/set-batal', 'setBatal');
         Route::post('bank-terima/set-approved', 'setApproved');
         Route::post('bank-terima', 'store');
+    });
+    Route::controller(\Finance\BankKeluarController::class)->group(function () {
+        Route::get('bank-keluar', 'show1');
+        Route::get('bank-keluar/all', 'show2');
+        Route::get('bank-keluar/get', 'get');
+        Route::get('bank-keluar/get-apinvoice', 'getAPInvoice');
+        Route::get('bank-keluar/get-apcredit', 'getAPCredit');
+        Route::get('bank-keluar/get-sobayar', 'getSOBayar');
+        Route::get('bank-keluar/get-batal', 'getBatal');
+        Route::get('bank-keluar/get-approved', 'getApproved');
+        Route::get('bank-keluar/get-allref', 'getAllRef');
+        Route::delete('bank-keluar', 'destroy');
+        Route::post('bank-keluar/set-batal', 'setBatal');
+        Route::post('bank-keluar/set-approved', 'setApproved');
+        Route::post('bank-keluar', 'store');
+    });
+    Route::controller(\Finance\APDepositController::class)->group(function () {
+        Route::get('apdp', 'show1');
+        Route::get('apdp/all', 'show2');
+        Route::get('apdp/get', 'get');
+        Route::get('apdp/get-batal', 'getBatal');
+        Route::get('apdp/get-allref', 'getAllRef');
+        Route::delete('apdp', 'destroy');
+        Route::post('apdp/set-batal', 'setBatal');
+        Route::post('apdp/set-approved', 'setApproved');
+        Route::post('apdp', 'store');
+    });
+    Route::controller(\Finance\ARDepositController::class)->group(function () {
+        Route::get('ardp', 'show1');
+        Route::get('ardp/all', 'show2');
+        Route::get('ardp/get', 'get');
+        Route::get('ardp/get-batal', 'getBatal');
+        Route::get('ardp/get-allref', 'getAllRef');
+        Route::delete('ardp', 'destroy');
+        Route::post('ardp/set-batal', 'setBatal');
+        Route::post('ardp/set-approved', 'setApproved');
+        Route::post('ardp', 'store');
     });
 });

@@ -7,12 +7,15 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Models\Accounting\AccountDtl;
 use App\Models\Sales\SO1;
 use App\Models\Sales\SO2;
 use App\Models\Sales\SO2Fifo;
 use App\Models\Sales\SO3;
 use App\Models\Sales\SO4;
 use App\Models\Sales\SO5;
+use App\Models\Sales\SO6;
+use App\Models\Finance\ARDP1;
 use App\Models\Master\Lokasi;
 use App\Models\Master\Bahan;
 use App\Models\Master\BahanSatuan;
@@ -179,10 +182,42 @@ class SalesOrderController extends Controller
         return response()->success('Success',$response);
     }
 
+    public function getSODPRef(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        $kd_partner=isset($request->kd_partner) ? $request->kd_partner : '';
+        $jenis=isset($request->jenis) ? $request->jenis : 0;
+        $base_type=41; //AR Deposit
+
+        //SODP
+        $data['t_so6']= SO6::from('t_so6 as a')
+        ->rightJoin('t_ardp1 as b', function($join) use ($doc_key) {
+            $join->on('a.base_ref','=','b.doc_key');
+            $join->where('a.doc_key','=',$doc_key);
+        })
+        ->leftJoin('m_customer as c','b.kd_partner','=','c.kd_customer')
+        ->selectRaw("a.dtl6_key, a.doc_key, ".$base_type." as base_type, b.doc_key as base_ref,
+            COALESCE(a.rp_jumlah,0) AS rp_jumlah, b.no_doc AS base_ref2,
+            b.no_doc AS no_doc_ardp, b.tgl_doc AS tgl_doc_ardp, b.kd_partner AS kd_partner_ardp,
+            c.nm_customer AS nm_partner_ardp, b.rp_total AS rp_total_ardp, COALESCE(a.rp_jumlah,0)+COALESCE(b.rp_sisa,0) AS rp_sisa_ardp")
+        ->where("b.kd_partner",$kd_partner)
+        ->where(DB::raw('b.rp_sisa + COALESCE(a.rp_jumlah,0)'),'>',0)
+        ->orderBy("b.tgl_doc","desc")
+        ->orderBy("b.no_doc","desc")
+        ->get();
+
+        if ($jenis==1) {
+            return response()->success('Success',$data);
+        } else {
+            return $data['t_so6'];
+        }
+    }
+
     public function getAllRef(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $base_type=isset($request->base_type) ? $request->base_type : 0;
         $user_id=isset($request->user_id) ? $request->user_id : '';
+        $kd_partner=isset($request->kd_partner) ? $request->kd_partner : '';
+        $jenis=isset($request->jenis) ? $request->jenis : 0;
 
         //PasAccess
         $pasGrup= PasUsers::from('pas_users as a')
@@ -245,6 +280,9 @@ class SalesOrderController extends Controller
         ->where("a.doc_key",$doc_key)
         ->orderBy("a.no_urut")
         ->get();
+
+        //SO6
+        $data['t_so6']= SalesOrderController::getSODPRef($request);
 
         //Master DocNo
         $data['i_docno']= DocNo::from('i_docno as a')
@@ -368,6 +406,56 @@ class SalesOrderController extends Controller
             $so1->save();
         }
         $response['message'] = 'Batal data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function updateLinkData($doc_key = 0, $insert = FALSE) {
+        if ($insert == FALSE) {
+            //ARDeposit1
+            $dataARDP1= ARDP1::from("t_ardp1 as a")
+            ->leftJoin("t_so6 as b","a.doc_key","=","b.base_ref")
+            ->leftJoin("t_so1 as c","b.doc_key","=","c.doc_key")
+            ->selectRaw("a.doc_key, b.dtl6_key, b.rp_jumlah")
+            ->where("c.doc_key",$doc_key)
+            ->where("b.base_type",41) //AR Deposit
+            ->get();
+            foreach($dataARDP1 as $recARDP1) {
+                //Update APDeposit1
+                $arDeposit = ARDP1::where('doc_key',$recARDP1->doc_key)->first();
+                if ($arDeposit) {
+                    if ($arDeposit->rp_sisa + $recARDP1->rp_jumlah == 0) {
+                        $arDeposit->fl_tutup = TRUE;
+                    } else {
+                        $arDeposit->fl_tutup = FALSE;
+                    }
+                    $arDeposit->rp_sisa = $arDeposit->rp_sisa + $recARDP1->rp_jumlah;
+                    $arDeposit->save();
+                }
+            }
+        } elseif ($insert == TRUE) {
+            //ARDeposit1
+            $dataARDP1= ARDP1::from("t_ardp1 as a")
+            ->leftJoin("t_so6 as b","a.doc_key","=","b.base_ref")
+            ->leftJoin("t_so1 as c","b.doc_key","=","c.doc_key")
+            ->selectRaw("a.doc_key, b.dtl6_key, b.rp_jumlah")
+            ->where("c.doc_key",$doc_key)
+            ->where("b.base_type",41) //AR Deposit
+            ->get();
+            foreach($dataARDP1 as $recARDP1) {
+                //Update APDeposit1
+                $arDeposit = ARDP1::where('doc_key',$recARDP1->doc_key)->first();
+                if ($arDeposit) {
+                    if ($arDeposit->rp_sisa - $recARDP1->rp_jumlah == 0) {
+                        $arDeposit->fl_tutup = TRUE;
+                    } else {
+                        $arDeposit->fl_tutup = FALSE;
+                    }
+                    $arDeposit->rp_sisa = $arDeposit->rp_sisa - $recARDP1->rp_jumlah;
+                    $arDeposit->save();
+                }
+            }
+        }
+        $response['message'] = 'Set link data berhasil';
         return response()->success('Success',$response);
     }
 
@@ -574,6 +662,280 @@ class SalesOrderController extends Controller
         return $data;*/
     }
 
+    public function generateJurnal($doc_key = 0, $user_id = '') {
+        //$doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        //$user_id=isset($request->user_id) ? $request->user_id : '';
+        $docTrans=31; //Sales Order
+
+        //Hapus Jurnal Lama
+        AccountDtl::where('base_doc_key',$doc_key)->delete();
+
+        //Jurnal Piutang dan Penjualan
+        $subJ1= DB::table('t_so2 as a')
+        ->selectRaw("a.doc_key, SUM(COALESCE(a.rp_diskon,0)) AS rp_diskon")
+        ->where("a.doc_key",$doc_key)
+        ->whereNull("a.parent_dtl2_key")
+        ->groupBy("a.doc_key");
+        $subJ2= DB::table('t_so6 as a')
+        ->selectRaw("a.doc_key, SUM(COALESCE(a.rp_jumlah,0)) AS rp_jumlah")
+        ->where("a.doc_key",$doc_key)
+        ->groupBy("a.doc_key");
+        $jurnal= SO1::from('t_so1 as a')
+        ->leftJoinSub($subJ1,'b', function ($join) {
+            $join->on('a.doc_key','=','b.doc_key');
+        })
+        ->leftJoinSub($subJ2,'c', function ($join) {
+            $join->on('a.doc_key','=','c.doc_key');
+        })
+        ->leftJoin('m_customer as d','a.kd_partner','=','d.kd_customer')
+        ->leftJoin('m_customer_grup as e','d.kd_customer_grup','=','e.kd_customer_grup')
+        ->selectRaw("a.*, b.rp_diskon AS rp_diskon_dtl, c.rp_jumlah AS rp_jumlah_dp, e.no_account AS no_account_cust")
+        ->where("a.doc_key",$doc_key)
+        ->whereRaw("(COALESCE(a.fl_batal,'false') = 'false')")
+        ->whereRaw("(COALESCE(a.fl_pass,'false') = 'false')")
+        ->get();
+        //Jurnal Debet (Penjualan)
+        foreach($jurnal as $recJurnal) {
+            //Piutang
+            if ($recJurnal->rp_total-$recJurnal->rp_jumlah_dp != 0) {
+                $jurnalPiutang= new AccountDtl();
+                $jurnalPiutang->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalPiutang->no_account = $recJurnal->no_account_cust;
+                $jurnalPiutang->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_total-$recJurnal->rp_jumlah_dp > 0) {
+                    $jurnalPiutang->enum_debet_kredit = 'D';
+                    $jurnalPiutang->rp_debet = abs($recJurnal->rp_total-$recJurnal->rp_jumlah_dp);
+                    $jurnalPiutang->rp_kredit = 0;
+                } else {
+                    $jurnalPiutang->enum_debet_kredit = 'K';
+                    $jurnalPiutang->rp_debet = 0;
+                    $jurnalPiutang->rp_kredit = abs($recJurnal->rp_total-$recJurnal->rp_jumlah_dp);
+                }
+                $jurnalPiutang->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalPiutang->catatan = $recJurnal->nm_partner;
+                $jurnalPiutang->no_ref1 = $recJurnal->no_doc;
+                $jurnalPiutang->no_ref2 = '';
+                $jurnalPiutang->user_id = $user_id;
+                $jurnalPiutang->base_type = $docTrans; //Sales Order
+                $jurnalPiutang->base_doc_key = $recJurnal->doc_key;
+                //$jurnalPiutang->base_dtl_key = $recJurnal->doc_key;
+                $jurnalPiutang->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalPiutang->save();
+            }
+            //DP
+            if ($recJurnal->rp_jumlah_dp != 0) {
+                $jurnalDP= new AccountDtl();
+                $jurnalDP->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalDP->no_account = UtilityController::getAccountConfig('no_acc_so_dp');
+                $jurnalDP->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_jumlah_dp > 0) {
+                    $jurnalDP->enum_debet_kredit = 'D';
+                    $jurnalDP->rp_debet = abs($recJurnal->rp_jumlah_dp);
+                    $jurnalDP->rp_kredit = 0;
+                } else {
+                    $jurnalDP->enum_debet_kredit = 'K';
+                    $jurnalDP->rp_debet = 0;
+                    $jurnalDP->rp_kredit = abs($recJurnal->rp_jumlah_dp);
+                }
+                $jurnalDP->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalDP->catatan = $recJurnal->nm_partner;
+                $jurnalDP->no_ref1 = $recJurnal->no_doc;
+                $jurnalDP->no_ref2 = '';
+                $jurnalDP->user_id = $user_id;
+                $jurnalDP->base_type = $docTrans; //Sales Order
+                $jurnalDP->base_doc_key = $recJurnal->doc_key;
+                //$jurnalDP->base_dtl_key = $recJurnal->doc_key;
+                $jurnalDP->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalDP->save();
+            }
+            //Diskon
+            if ($recJurnal->rp_diskon != 0) {
+                $jurnalDiskon= new AccountDtl();
+                $jurnalDiskon->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalDiskon->no_account = UtilityController::getAccountConfig('no_acc_so_diskon');
+                $jurnalDiskon->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_diskon > 0) {
+                    $jurnalDiskon->enum_debet_kredit = 'D';
+                    $jurnalDiskon->rp_debet = abs($recJurnal->rp_diskon);
+                    $jurnalDiskon->rp_kredit = 0;
+                } else {
+                    $jurnalDiskon->enum_debet_kredit = 'K';
+                    $jurnalDiskon->rp_debet = 0;
+                    $jurnalDiskon->rp_kredit = abs($recJurnal->rp_diskon);
+                }
+                $jurnalDiskon->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalDiskon->catatan = $recJurnal->nm_partner;
+                $jurnalDiskon->no_ref1 = $recJurnal->no_doc;
+                $jurnalDiskon->no_ref2 = '';
+                $jurnalDiskon->user_id = $user_id;
+                $jurnalDiskon->base_type = $docTrans; //Sales Order
+                $jurnalDiskon->base_doc_key = $recJurnal->doc_key;
+                //$jurnalDiskon->base_dtl_key = $recJurnal->doc_key;
+                $jurnalDiskon->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalDiskon->save();
+            }
+            //Diskon Detail
+            if ($recJurnal->rp_diskon_dtl != 0) {
+                $jurnalDiskonDtl= new AccountDtl();
+                $jurnalDiskonDtl->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalDiskonDtl->no_account = UtilityController::getAccountConfig('no_acc_so_diskon');
+                $jurnalDiskonDtl->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_diskon_dtl > 0) {
+                    $jurnalDiskonDtl->enum_debet_kredit = 'D';
+                    $jurnalDiskonDtl->rp_debet = abs($recJurnal->rp_diskon_dtl);
+                    $jurnalDiskonDtl->rp_kredit = 0;
+                } else {
+                    $jurnalDiskonDtl->enum_debet_kredit = 'K';
+                    $jurnalDiskonDtl->rp_debet = 0;
+                    $jurnalDiskonDtl->rp_kredit = abs($recJurnal->rp_diskon_dtl);
+                }
+                $jurnalDiskonDtl->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalDiskonDtl->catatan = $recJurnal->nm_partner;
+                $jurnalDiskonDtl->no_ref1 = $recJurnal->no_doc;
+                $jurnalDiskonDtl->no_ref2 = '';
+                $jurnalDiskonDtl->user_id = $user_id;
+                $jurnalDiskonDtl->base_type = $docTrans; //Sales Order
+                $jurnalDiskonDtl->base_doc_key = $recJurnal->doc_key;
+                //$jurnalDiskonDtl->base_dtl_key = $recJurnal->doc_key;
+                $jurnalDiskonDtl->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalDiskonDtl->save();
+            }
+            //PPh23
+            if ($recJurnal->rp_pph23 != 0) {
+                $jurnalPPh23= new AccountDtl();
+                $jurnalPPh23->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalPPh23->no_account = UtilityController::getAccountConfig('no_acc_so_pph23');
+                $jurnalPPh23->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_pph23 > 0) {
+                    $jurnalPPh23->enum_debet_kredit = 'D';
+                    $jurnalPPh23->rp_debet = abs($recJurnal->rp_pph23);
+                    $jurnalPPh23->rp_kredit = 0;
+                } else {
+                    $jurnalPPh23->enum_debet_kredit = 'K';
+                    $jurnalPPh23->rp_debet = 0;
+                    $jurnalPPh23->rp_kredit = abs($recJurnal->rp_pph23);
+                }
+                $jurnalPPh23->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalPPh23->catatan = $recJurnal->nm_partner;
+                $jurnalPPh23->no_ref1 = $recJurnal->no_doc;
+                $jurnalPPh23->no_ref2 = '';
+                $jurnalPPh23->user_id = $user_id;
+                $jurnalPPh23->base_type = $docTrans; //Sales Order
+                $jurnalPPh23->base_doc_key = $recJurnal->doc_key;
+                //$jurnalPPh23->base_dtl_key = $recJurnal->doc_key;
+                $jurnalPPh23->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalPPh23->save();
+            }
+            //Rounding
+            if ($recJurnal->rp_rounding != 0) {
+                $jurnalRounding= new AccountDtl();
+                $jurnalRounding->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalRounding->no_account = UtilityController::getAccountConfig('no_acc_so_rounding');
+                $jurnalRounding->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_rounding > 0) {
+                    $jurnalRounding->enum_debet_kredit = 'K';
+                    $jurnalRounding->rp_debet = 0;
+                    $jurnalRounding->rp_kredit = abs($recJurnal->rp_rounding);
+                } else {
+                    $jurnalRounding->enum_debet_kredit = 'D';
+                    $jurnalRounding->rp_debet = abs($recJurnal->rp_rounding);
+                    $jurnalRounding->rp_kredit = 0;
+                }
+                $jurnalRounding->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalRounding->catatan = $recJurnal->nm_partner;
+                $jurnalRounding->no_ref1 = $recJurnal->no_doc;
+                $jurnalRounding->no_ref2 = '';
+                $jurnalRounding->user_id = $user_id;
+                $jurnalRounding->base_type = $docTrans; //Sales Order
+                $jurnalRounding->base_doc_key = $recJurnal->doc_key;
+                //$jurnalRounding->base_dtl_key = $recJurnal->doc_key;
+                $jurnalRounding->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalRounding->save();
+            }
+            //Pendapatan
+            if ($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl != 0) {
+                $jurnalIncome= new AccountDtl();
+                $jurnalIncome->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalIncome->no_account = UtilityController::getAccountConfig('no_acc_so');
+                $jurnalIncome->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl > 0) {
+                    $jurnalIncome->enum_debet_kredit = 'K';
+                    $jurnalIncome->rp_debet = 0;
+                    $jurnalIncome->rp_kredit = abs($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl);
+                } else {
+                    $jurnalIncome->enum_debet_kredit = 'D';
+                    $jurnalIncome->rp_debet = abs($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl);
+                    $jurnalIncome->rp_kredit = 0;
+                }
+                $jurnalIncome->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalIncome->catatan = $recJurnal->nm_partner;
+                $jurnalIncome->no_ref1 = $recJurnal->no_doc;
+                $jurnalIncome->no_ref2 = '';
+                $jurnalIncome->user_id = $user_id;
+                $jurnalIncome->base_type = $docTrans; //Sales Order
+                $jurnalIncome->base_doc_key = $recJurnal->doc_key;
+                //$jurnalIncome->base_dtl_key = $recJurnal->doc_key;
+                $jurnalIncome->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalIncome->save();
+            }
+            //Ongkir
+            if ($recJurnal->rp_biaya != 0) {
+                $jurnalBiaya= new AccountDtl();
+                $jurnalBiaya->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalBiaya->no_account = UtilityController::getAccountConfig('no_acc_so_ongkir');
+                $jurnalBiaya->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_biaya > 0) {
+                    $jurnalBiaya->enum_debet_kredit = 'K';
+                    $jurnalBiaya->rp_debet = 0;
+                    $jurnalBiaya->rp_kredit = abs($recJurnal->rp_biaya);
+                } else {
+                    $jurnalBiaya->enum_debet_kredit = 'D';
+                    $jurnalBiaya->rp_debet = abs($recJurnal->rp_biaya);
+                    $jurnalBiaya->rp_kredit = 0;
+                }
+                $jurnalBiaya->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalBiaya->catatan = $recJurnal->nm_partner;
+                $jurnalBiaya->no_ref1 = $recJurnal->no_doc;
+                $jurnalBiaya->no_ref2 = '';
+                $jurnalBiaya->user_id = $user_id;
+                $jurnalBiaya->base_type = $docTrans; //Sales Order
+                $jurnalBiaya->base_doc_key = $recJurnal->doc_key;
+                //$jurnalBiaya->base_dtl_key = $recJurnal->doc_key;
+                $jurnalBiaya->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalBiaya->save();
+            }
+            //PPN
+            if ($recJurnal->rp_pajak != 0) {
+                $jurnalPPN= new AccountDtl();
+                $jurnalPPN->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalPPN->no_account = UtilityController::getAccountConfig('no_acc_so_ppn');
+                $jurnalPPN->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_pajak > 0) {
+                    $jurnalPPN->enum_debet_kredit = 'K';
+                    $jurnalPPN->rp_debet = 0;
+                    $jurnalPPN->rp_kredit = abs($recJurnal->rp_pajak);
+                } else {
+                    $jurnalPPN->enum_debet_kredit = 'D';
+                    $jurnalPPN->rp_debet = abs($recJurnal->rp_pajak);
+                    $jurnalPPN->rp_kredit = 0;
+                }
+                $jurnalPPN->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalPPN->catatan = $recJurnal->nm_partner;
+                $jurnalPPN->no_ref1 = $recJurnal->no_doc;
+                $jurnalPPN->no_ref2 = '';
+                $jurnalPPN->user_id = $user_id;
+                $jurnalPPN->base_type = $docTrans; //Sales Order
+                $jurnalPPN->base_doc_key = $recJurnal->doc_key;
+                //$jurnalPPN->base_dtl_key = $recJurnal->doc_key;
+                $jurnalPPN->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalPPN->save();
+            }
+        }
+
+        $response['message'] = 'Set GL berhasil';
+        return response()->success('Success',$response);
+    }
+
     public function store(Request $request) {
         $data = $request->json()->all();
         $where= $data['where'];
@@ -584,6 +946,11 @@ class SalesOrderController extends Controller
         $dataTrans3= $data['t_so3'];
         //$dataTrans4= $data['t_so4'];
         $dataTrans5= $data['t_so5'];
+        $dataTrans6= $data['t_so6'];
+
+        $dataTrans6= array_filter($dataTrans6, function($item) {
+            return isset($item['rp_jumlah']) && $item['rp_jumlah'] > 0;
+        });
 
         DB::beginTransaction();
         try {
@@ -600,6 +967,7 @@ class SalesOrderController extends Controller
             $so1= SO1::where('doc_key',$doc_key)->first();
             //Jika update, kembalikan stok terlebih dahulu
             if ($so1) {
+                SalesOrderController::updateLinkData($doc_key, FALSE);
                 if (UtilityController::getAutoStok() == 'true') {
                     if ($so1->tgl_kirim <= date('Y-m-d')) {
                         SalesOrderController::updateStok($doc_key, FALSE);
@@ -898,11 +1266,48 @@ class SalesOrderController extends Controller
                 $so5->save();
             }
 
+            //Data SO6
+            $existingIds = SO6::where('doc_key',$doc_key)->pluck('dtl6_key')->toArray();
+            $newIds = collect($dataTrans6)->pluck('dtl6_key')->filter()->toArray();
+            // Delete items that are not in request
+            $toDelete = array_diff($existingIds, $newIds);
+            SO6::whereIn('dtl6_key', $toDelete)->delete();
+
+            //SO6::where('doc_key',$doc_key)->delete(); //Hapus data existing
+            foreach($dataTrans6 as $recTrans6) {
+                $validator=Validator::make($recTrans6,[
+                    'rp_jumlah'=>'bail|required',
+                ],[
+                    'rp_jumlah.required'=>'Rp Jumlah harus diisi',
+                ]);
+
+                if ($validator->fails()){
+                    return response()->error('',501,$validator->errors()->first());
+                }
+
+                $so6 = SO6::where('dtl6_key',$recTrans6['dtl6_key'])->first();
+                if (!($so6)) {
+                    $so6 = new SO6();
+                    $so6->dtl6_key = DocNoController::getDocKey('doc_key');
+                }
+                $so6->doc_key        = $so1->doc_key;
+                $so6->base_type      = $recTrans6['base_type'];
+                $so6->base_ref       = $recTrans6['base_ref'];
+                $so6->rp_jumlah      = $recTrans6['rp_jumlah'];
+                $so6->base_ref2      = $recTrans6['base_ref2'];
+                $so6->save();
+            }
+
+            SalesOrderController::updateLinkData($doc_key, TRUE);
             $resp = 0;
             if (UtilityController::getAutoStok() == 'true') {
                 if ($so1->tgl_kirim <= date('Y-m-d')) {
                     $resp= SalesOrderController::updateStok($so1->doc_key, TRUE);
                 }
+            }
+            if (UtilityController::getAutoJurnal() == 'true') {
+                $user_id = isset($dataTrans1['update_userid']) ? $dataTrans1['update_userid'] : $dataTrans1['create_userid'];
+                SalesOrderController::generateJurnal($so1->doc_key, $user_id);
             }
 
             DB::commit();

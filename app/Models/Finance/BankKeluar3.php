@@ -9,7 +9,7 @@ class BankKeluar3 extends Model
 {
     use HasFactory;
     protected $table = 't_bank_keluar3';
-    protected $primaryKey = 'doc_key';
+    protected $primaryKey = 'dtl3_key';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;
     public $timestamps = false;

@@ -16,6 +16,7 @@ use App\Models\Purchase\APInvoice1;
 use App\Models\Purchase\APInvoice2;
 use App\Models\Purchase\APInvoice3;
 use App\Models\Purchase\APInvoice4;
+use App\Models\Finance\APDP1;
 use App\Models\Master\Lokasi;
 use App\Models\Master\Bahan;
 use App\Models\Master\BahanSatuan;
@@ -248,12 +249,13 @@ class PurchaseInvoiceController extends Controller
         })
         ->leftJoin('m_supplier as c','b.kd_partner','=','c.kd_supplier')
         ->selectRaw("a.dtl4_key, a.doc_key, ".$base_type." as base_type, b.doc_key as base_ref,
-            a.rp_jumlah, b.no_doc AS base_ref2,
+            COALESCE(a.rp_jumlah,0) AS rp_jumlah, b.no_doc AS base_ref2,
             b.no_doc AS no_doc_apdp, b.tgl_doc AS tgl_doc_apdp, b.kd_partner AS kd_partner_apdp,
-            c.nm_supplier AS nm_partner_apdp, b.rp_total AS rp_total_apdp, b.rp_sisa AS rp_sisa_apdp")
+            c.nm_supplier AS nm_partner_apdp, b.rp_total AS rp_total_apdp, COALESCE(a.rp_jumlah,0)+COALESCE(b.rp_sisa,0) AS rp_sisa_apdp")
         ->where("b.kd_partner",$kd_partner)
         ->where(DB::raw('b.rp_sisa + COALESCE(a.rp_jumlah,0)'),'>',0)
-        ->orderBy("a.dtl4_key")
+        ->orderBy("b.tgl_doc","desc")
+        ->orderBy("b.no_doc","desc")
         ->get();
 
         if ($jenis==1) {
@@ -427,6 +429,7 @@ class PurchaseInvoiceController extends Controller
 
     public function destroy(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        PurchaseInvoiceController::updateLinkData($doc_key,FALSE);
         APInvoice3::where('doc_key',$doc_key)->delete();
         APInvoice2::where('doc_key',$doc_key)->delete();
         APInvoice1::where('doc_key',$doc_key)->delete();
@@ -491,7 +494,6 @@ class PurchaseInvoiceController extends Controller
                     $rp_sisa = $rp_sisa + $gr3->rp_sisa;
                 }
             }
-
             //Update GR1
             $updGR1= GR1::where("doc_key",$gr_doc_key)->first();
             if ($updGR1) {
@@ -501,6 +503,27 @@ class PurchaseInvoiceController extends Controller
                     $updGR1->fl_tutup= FALSE;
                 };
                 $updGR1->save();
+            }
+            //APDeposit1
+            $dataAPDP1= APDP1::from("t_apdp1 as a")
+            ->leftJoin("t_ap_invoice4 as b","a.doc_key","=","b.base_ref")
+            ->leftJoin("t_ap_invoice1 as c","b.doc_key","=","c.doc_key")
+            ->selectRaw("a.doc_key, b.dtl4_key, b.rp_jumlah")
+            ->where("c.doc_key",$doc_key)
+            ->where("b.base_type",20) //AP Deposit
+            ->get();
+            foreach($dataAPDP1 as $recAPDP1) {
+                //Update APDeposit1
+                $apDeposit = APDP1::where('doc_key',$recAPDP1->doc_key)->first();
+                if ($apDeposit) {
+                    if ($apDeposit->rp_sisa + $recAPDP1->rp_jumlah == 0) {
+                        $apDeposit->fl_tutup = TRUE;
+                    } else {
+                        $apDeposit->fl_tutup = FALSE;
+                    }
+                    $apDeposit->rp_sisa = $apDeposit->rp_sisa + $recAPDP1->rp_jumlah;
+                    $apDeposit->save();
+                }
             }
         } elseif ($insert == TRUE) {
             $gr_doc_key = 0;
@@ -535,7 +558,6 @@ class PurchaseInvoiceController extends Controller
                     $rp_sisa = $rp_sisa + $gr3->rp_sisa;
                 }
             }
-
             //Update GR1
             $updGR1= GR1::where("doc_key",$gr_doc_key)->first();
             if ($updGR1) {
@@ -545,6 +567,27 @@ class PurchaseInvoiceController extends Controller
                     $updGR1->fl_tutup= FALSE;
                 };
                 $updGR1->save();
+            }
+            //APDeposit1
+            $dataAPDP1= APDP1::from("t_apdp1 as a")
+            ->leftJoin("t_ap_invoice4 as b","a.doc_key","=","b.base_ref")
+            ->leftJoin("t_ap_invoice1 as c","b.doc_key","=","c.doc_key")
+            ->selectRaw("a.doc_key, b.dtl4_key, b.rp_jumlah")
+            ->where("c.doc_key",$doc_key)
+            ->where("b.base_type",20) //AP Deposit
+            ->get();
+            foreach($dataAPDP1 as $recAPDP1) {
+                //Update APDeposit1
+                $apDeposit = APDP1::where('doc_key',$recAPDP1->doc_key)->first();
+                if ($apDeposit) {
+                    if ($apDeposit->rp_sisa - $recAPDP1->rp_jumlah == 0) {
+                        $apDeposit->fl_tutup = TRUE;
+                    } else {
+                        $apDeposit->fl_tutup = FALSE;
+                    }
+                    $apDeposit->rp_sisa = $apDeposit->rp_sisa - $recAPDP1->rp_jumlah;
+                    $apDeposit->save();
+                }
             }
             //var_dump($gr_doc_key,$qty,$qty_sisa,$rp_sisa);
         }
@@ -839,6 +882,10 @@ class PurchaseInvoiceController extends Controller
         $dataTrans3= $data['t_ap_invoice3'];
         $dataTrans4= $data['t_ap_invoice4'];
 
+        $dataTrans4= array_filter($dataTrans4, function ($item) {
+            return isset($item['rp_jumlah']) && $item['rp_jumlah'] > 0;
+        });
+
         DB::beginTransaction();
         try {
             //Data APInvoice1
@@ -851,10 +898,13 @@ class PurchaseInvoiceController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
-            $resp1= PurchaseInvoiceController::updateLinkData($doc_key, FALSE);
-
             $apInvoice1= APInvoice1::where('doc_key',$doc_key)->first();
-            if (!($apInvoice1)) {
+
+            if ($apInvoice1) {
+                PurchaseInvoiceController::updateLinkData($doc_key, FALSE);
+                //Update Stok Harga Beli
+                $respStok= PurchaseInvoiceController::updateStok($doc_key, FALSE);
+            } else {
                 $apInvoice1= new APInvoice1();
                 $apInvoice1->doc_key = DocNoController::getDocKey('doc_key');
             }
@@ -1014,9 +1064,9 @@ class PurchaseInvoiceController extends Controller
             //APInvoice4::where('doc_key',$doc_key)->delete(); //Hapus data existing
             foreach($dataTrans4 as $recTrans4) {
                 $validator=Validator::make($recTrans4,[
-                    'no_account'=>'bail|required',
+                    'rp_jumlah'=>'bail|required',
                 ],[
-                    'no_account.required'=>'No Account harus diisi',
+                    'rp_jumlah.required'=>'Rp Jumlah harus diisi',
                 ]);
 
                 if ($validator->fails()){
@@ -1029,21 +1079,19 @@ class PurchaseInvoiceController extends Controller
                     $apInvoice4->dtl4_key = DocNoController::getDocKey('doc_key');
                 }
                 $apInvoice4->doc_key        = $apInvoice1->doc_key;
-                $apInvoice4->no_urut        = $recTrans4['no_urut'];
-                $apInvoice4->no_account     = $recTrans4['no_account'];
-                $apInvoice4->nm_account     = $recTrans4['nm_account'];
-                $apInvoice4->catatan        = $recTrans4['catatan'];
-                $apInvoice4->rp_bayar       = $recTrans4['rp_bayar'];
-                $apInvoice4->rp_sisa        = $recTrans4['rp_sisa'];
                 $apInvoice4->base_type      = $recTrans4['base_type'];
                 $apInvoice4->base_ref       = $recTrans4['base_ref'];
+                $apInvoice4->rp_jumlah      = $recTrans4['rp_jumlah'];
+                $apInvoice4->base_ref2      = $recTrans4['base_ref2'];
                 $apInvoice4->save();
             }
 
-            $user_id = isset($dataTrans1['update_userid']) ? $dataTrans1['update_userid'] : $dataTrans1['create_userid'];
             PurchaseInvoiceController::updateLinkData($apInvoice1->doc_key, TRUE);
             PurchaseInvoiceController::updateStok($apInvoice1->doc_key, TRUE);
-            PurchaseInvoiceController::generateJurnal($apInvoice1->doc_key, $user_id);
+            if (UtilityController::getAutoJurnal() == 'true') {
+                $user_id = isset($dataTrans1['update_userid']) ? $dataTrans1['update_userid'] : $dataTrans1['create_userid'];
+                PurchaseInvoiceController::generateJurnal($apInvoice1->doc_key, $user_id);
+            }
 
             DB::commit();
             //$response['resp1'] = $resp1;

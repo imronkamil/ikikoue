@@ -9,7 +9,7 @@ class BankTerima2 extends Model
 {
     use HasFactory;
     protected $table = 't_bank_terima2';
-    protected $primaryKey = 'doc_key';
+    protected $primaryKey = 'dtl2_key';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;
     public $timestamps = false;

@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Models\Finance;
+namespace App\Models\Sales;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class BankKeluar2 extends Model
+class JualBahan extends Model
 {
     use HasFactory;
-    protected $table = 't_bank_keluar2';
+    protected $table = 't_jual_bahan';
     protected $primaryKey = 'dtl2_key';
     protected $keyType = 'bigInteger';
     public $incrementing  = false;

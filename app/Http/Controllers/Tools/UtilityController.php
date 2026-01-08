@@ -180,6 +180,12 @@ class UtilityController extends Controller
         return $stok;
     }
 
+    public static function getAutoJurnal() {
+        $jurnal= UtilityController::getBooleanSys("FLAG_AUTO_JURNAL");
+        $response['value'] = $jurnal;
+        return $jurnal;
+    }
+
     public static function getHakMenu(Request $request) {
         $user_id=isset($request->user_id) ? $request->user_id : '';
         if ($user_id == 'sa') {
