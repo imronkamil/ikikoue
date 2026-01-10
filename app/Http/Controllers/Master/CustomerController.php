@@ -296,10 +296,10 @@ class CustomerController extends Controller
         //CustomerAlamat::where('customer_alamat_id',$doc_key)->delete(); //Hapus data existing
         foreach($master2 as $recMaster2) {
             $validator=Validator::make($recMaster2,[
-                'kd_alamat'=>'bail|required',
+                'nm_alamat'=>'bail|required',
                 'alamat'=>'bail|required',
             ],[
-                'kd_alamat.required'=>'Kode harus diisi',
+                'nm_alamat.required'=>'Kode harus diisi',
                 'alamat.required'=>'Alamat harus diisi',
             ]);
 
@@ -311,9 +311,9 @@ class CustomerController extends Controller
             if (!($custAlamat)) {
                 $custAlamat = new CustomerAlamat();
                 $custAlamat->customer_alamat_id = CustomerAlamat::max('customer_alamat_id') + 1;
+                $custAlamat->kd_alamat = CustomerAlamat::where('kd_customer',$customer->kd_customer)->max('kd_alamat') + 1;
             }
             $custAlamat->kd_customer    = $customer->kd_customer;
-            $custAlamat->kd_alamat      = $recMaster2['kd_alamat'];
             $custAlamat->nm_alamat      = $recMaster2['nm_alamat'];
             $custAlamat->alamat         = $recMaster2['alamat'];
             $custAlamat->propinsi       = $recMaster2['propinsi'];

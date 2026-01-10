@@ -491,14 +491,14 @@ class PurchaseOrderController extends Controller
                     $po2->qty_sisa = $po2->qty_sisa - $recPR1->qty;
                     $po2->save();
                     $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                    $qty_sisa = $qty_sisa - $po2->qty_sisa;
                 }
                 //Update PR3
                 $pr3 = PR3::where('dtl3_key',$recPR1->dtl3_key)->first();
                 if ($pr3) {
                     $pr3->rp_sisa = $pr3->rp_sisa - $recPR1->rp_bayar;
                     $pr3->save();
-                    $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                    $rp_sisa = $rp_sisa - $pr3->rp_sisa;
                 }
             }
 
@@ -550,7 +550,7 @@ class PurchaseOrderController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
-            PurchaseOrderController::setLinkData($doc_key, TRUE);
+            PurchaseOrderController::setLinkData($doc_key, FALSE);
             $po1= PO1::where('doc_key',$where['doc_key'])->first();
             if (!($po1)) {
                 $po1= new PO1();
