@@ -542,9 +542,12 @@ class StockTransferSendController extends Controller
                         $dataStokFifoDtl->save();
 
                         //Update harga stock transfer2
-                        $recTrans->rp_harga = $recStokFifo->rp_harga;
-                        $recTrans->rp_total = $recTrans->rp_harga * $recTrans->qty;
-                        $recTrans->save();
+                        $ts2= StockTransferSend2::where("dtl2_key",$recTrans->dtl2_key)->first();
+                        if ($ts2) {
+                            $ts2->rp_harga = $recStokFifo->rp_harga;
+                            $ts2->rp_total = $ts2->rp_harga * $ts2->qty;
+                            $ts2->save();
+                        }
                     } else {
                         break;
                     }
@@ -626,9 +629,12 @@ class StockTransferSendController extends Controller
                     $dataStokFifoDtl->save();
 
                     //Update harga stock transfer2
-                    $recTrans->rp_harga = ($dataStokFifo) ? $dataStokFifo->rp_harga : 0;
-                    $recTrans->rp_total = $recTrans->rp_harga * $recTrans->qty;
-                    $recTrans->save();
+                    $ts2= StockTransferSend2::where("dtl2_key",$recTrans->dtl2_key)->first();
+                    if ($ts2) {
+                        $ts2->rp_harga = ($dataStokFifo) ? $dataStokFifo->rp_harga : 0;
+                        $ts2->rp_total = $recTrans->rp_harga * $recTrans->qty;
+                        $ts2->save();
+                    }
                 }
             }
         }

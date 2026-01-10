@@ -418,114 +418,128 @@ class PurchaseOrderController extends Controller
 
     public static function setLinkData($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
-            $pr_doc_key = 0;
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
-            //PR1
+            //PR1 - Search PR1 doc_key linked to PO
             $dataPR= PR1::from("t_pr1 as a")
             ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
             foreach($dataPR as $recPR) {
-                $pr_doc_key = $recPR->doc_key;
-                //Update PR2
-                $pr2 = PR2::where('dtl2_key',$recPR->dtl2_key)->first();
-                if ($pr2) {
-                    $pr2->qty_sisa = $pr2->qty_sisa + $recPR->qty;
-                    $pr2->save();
-                    $qty = $qty + $pr2->qty;
-                    $qty_sisa = $qty_sisa + $pr2->qty_sisa;
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
+                $updatePR1= PR1::from("t_pr1 as a")
+                ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPR->doc_key)
+                ->get();
+                foreach($updatePR1 as $updPR1) {
+                    //Update PR2
+                    $pr2 = PR2::where('dtl2_key',$updPR1->dtl2_key)->first();
+                    if ($pr2) {
+                        $pr2->qty_sisa = $pr2->qty_sisa + $updPR1->qty;
+                        $pr2->save();
+                        $qty = $qty + $pr2->qty;
+                        $qty_sisa = $qty_sisa + $pr2->qty_sisa;
+                    }
+                    //Update PR3
+                    $pr3 = PR3::where('dtl3_key',$updPR1->dtl3_key)->first();
+                    if ($pr3) {
+                        $pr3->rp_sisa = $pr3->rp_sisa + $updPR1->rp_bayar;
+                        $pr3->save();
+                        $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                    }
                 }
-                //Update PR3
-                $pr3 = PR3::where('dtl3_key',$recPR->dtl3_key)->first();
-                if ($pr3) {
-                    $pr3->rp_sisa = $pr3->rp_sisa + $recPR->rp_bayar;
-                    $pr3->save();
-                    $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                //Update PR1
+                $pr1= PR1::where("doc_key",$recPR->doc_key)->first();
+                if ($pr1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $pr1->fl_tutup= TRUE;
+                    } else {
+                        $pr1->fl_tutup= FALSE;
+                    };
+                    if ($qty_sisa == 0) {
+                        $pr1->enum_tipe_po = 1; //Complete
+                    } elseif ($qty_sisa == $qty) {
+                        $pr1->enum_tipe_po = 0; //Aktif
+                    } else {
+                        $pr1->enum_tipe_po = 2; //Sebagian
+                    }
+                    $pr1->save();
                 }
-            }
-
-            //Update PR1
-            $updPR1= PR1::where("doc_key",$pr_doc_key)->first();
-            if ($updPR1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPR1->fl_tutup= TRUE;
-                } else {
-                    $updPR1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPR1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPR1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPR1->enum_tipe_po = 2; //Sebagian
-                }
-                $updPR1->save();
             }
         } elseif ($insert == TRUE) {
-            $pr_doc_key = 0;
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
-            //PR1
-            $dataPR1= PR1::from("t_pr1 as a")
+            //PR1 - Search PR1 doc_key linked to PO
+            $dataPR= PR1::from("t_pr1 as a")
             ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
-            foreach($dataPR1 as $recPR1) {
-                $pr_doc_key = $recPR1->doc_key;
-                //Update PR2
-                $po2 = PR2::where('dtl2_key',$recPR1->dtl2_key)->first();
-                if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa - $recPR1->qty;
-                    $po2->save();
-                    $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa - $po2->qty_sisa;
+            foreach($dataPR as $recPR) {
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
+                $updatePR1= PR1::from("t_pr1 as a")
+                ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_po2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPR->doc_key)
+                ->get();
+                foreach($updatePR1 as $updPR1) {
+                    //Update PR2
+                    $pr2 = PR2::where('dtl2_key',$updPR1->dtl2_key)->first();
+                    if ($pr2) {
+                        $pr2->qty_sisa = $pr2->qty_sisa - $updPR1->qty;
+                        $pr2->save();
+                        $qty = $qty + $pr2->qty;
+                        $qty_sisa = $qty_sisa + $pr2->qty_sisa;
+                    }
+                    //Update PR3
+                    $pr3 = PR3::where('dtl3_key',$updPR1->dtl3_key)->first();
+                    if ($pr3) {
+                        $pr3->rp_sisa = $pr3->rp_sisa - $updPR1->rp_bayar;
+                        $pr3->save();
+                        $rp_sisa = $rp_sisa + $pr3->rp_sisa;
+                    }
                 }
-                //Update PR3
-                $pr3 = PR3::where('dtl3_key',$recPR1->dtl3_key)->first();
-                if ($pr3) {
-                    $pr3->rp_sisa = $pr3->rp_sisa - $recPR1->rp_bayar;
-                    $pr3->save();
-                    $rp_sisa = $rp_sisa - $pr3->rp_sisa;
+                //Update PR1
+                $pr1= PR1::where("doc_key",$recPR->doc_key)->first();
+                if ($pr1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $pr1->fl_tutup= TRUE;
+                    } else {
+                        $pr1->fl_tutup= FALSE;
+                    };
+                    if ($qty_sisa == 0) {
+                        $pr1->enum_tipe_po = 1; //Complete
+                    } elseif ($qty_sisa == $qty) {
+                        $pr1->enum_tipe_po = 0; //Aktif
+                    } else {
+                        $pr1->enum_tipe_po = 2; //Sebagian
+                    }
+                    $pr1->save();
                 }
-            }
-
-            //Update PR1
-            $updPR1= PR1::where("doc_key",$pr_doc_key)->first();
-            if ($updPR1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPR1->fl_tutup= TRUE;
-                } else {
-                    $updPR1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPR1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPR1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPR1->enum_tipe_po = 2; //Sebagian
-                }
-                $updPR1->save();
             }
         }
         //var_dump($recPR1->doc_key,$rp_sisa);
-        $response['doc_key'] = $doc_key;
+        /*$response['doc_key'] = $doc_key;
         $response['pr_doc_key'] = $pr_doc_key;
         $response['qty'] = $qty;
         $response['qty_sisa'] = $qty_sisa;
-        $response['rp_sisa'] = $rp_sisa;
+        $response['rp_sisa'] = $rp_sisa;*/
         $response['message'] = 'Set link data berhasil';
         return response()->success('Success',$response);
     }
