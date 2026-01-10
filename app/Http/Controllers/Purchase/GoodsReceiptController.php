@@ -158,7 +158,9 @@ class GoodsReceiptController extends Controller
         })
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.tgl_datang, a.kd_lokasi, a.kd_partner, a.nm_partner,
             a.rp_total, a.catatan, COALESCE(a.fl_tutup,a.fl_batal,FALSE) AS fl_cek")
-        ->where('a.kd_partner',$kd_partner)
+        ->when($kd_partner != '0', function ($query) use ($kd_partner) {
+            $query->where('a.kd_partner', $kd_partner);
+        })
         ->where('a.kd_lokasi',$kd_lokasi)
         ->where(DB::raw('COALESCE(a.fl_batal,false)'),false)
         ->where(function ($query1) use ($doc_key) {

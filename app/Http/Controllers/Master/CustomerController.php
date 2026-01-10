@@ -25,7 +25,7 @@ class CustomerController extends Controller
         ->leftJoin('m_level_harga as c','a.kd_harga','=','c.kd_harga')
         ->selectRaw("a.*, b.nm_customer_grup, b.no_account, c.nm_harga")
         ->orderBy("a.kd_customer","desc")
-        //->take(15000)
+        //->take(10000)
         ->get();
         return response()->success('Success',$data);
     }
