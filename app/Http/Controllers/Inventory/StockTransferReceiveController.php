@@ -142,7 +142,7 @@ class StockTransferReceiveController extends Controller
         //StockTransferSend2
         $data['t_stock_transfer_send2']= StockTransferSend1::from('t_stock_transfer_send1 as a')
         ->join('t_stock_transfer_send2 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('t_stock_transfer_send2 as c','b.dtl2_key','c.base_ref')
+        ->leftJoin('t_stock_transfer_receive2 as c','b.dtl2_key','c.base_ref')
         ->selectRaw("a.kd_lokasi_dari, a.kd_lokasi_ke, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty_req, b.qty, b.rp_harga, b.rp_total,
             b.catatan, b.no_account, b.stok_fifo_key, b.qty_sisa, b.fl_tutup, b.konversi, b.satuan_dasar,
