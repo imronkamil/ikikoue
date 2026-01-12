@@ -181,7 +181,9 @@ class PurchaseInvoiceController extends Controller
         })
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.tgl_datang, a.kd_lokasi, a.kd_partner, a.nm_partner,
             a.rp_total, a.catatan, COALESCE(a.fl_tutup,a.fl_batal,FALSE) AS fl_cek")
-        ->where('a.kd_partner',$kd_partner)
+        ->when($kd_partner != '0', function ($query) use ($kd_partner) {
+            $query->where('a.kd_partner', $kd_partner);
+        })
         ->where('a.kd_lokasi',$kd_lokasi)
         ->where(DB::raw('COALESCE(a.fl_batal,false)'),false)
         ->where(function ($query1) use ($doc_key) {
@@ -219,7 +221,7 @@ class PurchaseInvoiceController extends Controller
         ->leftJoin('t_gr2 as b','a.doc_key','=','b.doc_key')
         ->leftJoin('t_ap_invoice2 as c', function($join) {
             $join->on('b.dtl2_key', '=', 'c.base_ref')
-                 ->where('a.base_type',11); //11=GR
+                 ->where('c.base_type',11); //11=GR
         })
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
@@ -266,7 +268,7 @@ class PurchaseInvoiceController extends Controller
         ->leftJoin('t_po2 as b','a.doc_key','=','b.doc_key')
         ->leftJoin('t_ap_invoice2 as c', function($join) {
             $join->on('b.dtl2_key', '=', 'c.base_ref')
-                 ->where('a.base_type',10); //10=PO
+                 ->where('c.base_type',10); //10=PO
         })
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
