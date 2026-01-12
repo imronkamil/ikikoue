@@ -271,17 +271,19 @@ class UtilityController extends Controller
     public static function getPesan(Request $request) {
         $user_id=isset($request->user_id) ? $request->user_id : '';
         $kd_aplikasi=isset($request->kd_aplikasi) ? $request->kd_aplikasi : '';
-        $pesan= DB::table('m_pesan as a')
+        $data['m_pesan']= DB::table('m_pesan as a')
             ->selectRaw('a.*')
             ->where(function ($q) use ($user_id) {
                 $q->where('a.user_id', $user_id)
-                  ->orWhere('COALESCE(a.user_id,"")', '');
+                  ->orWhereRaw("COALESCE(a.user_id,'') = ''");
             })
             ->where('a.kd_aplikasi', $kd_aplikasi)
             ->where('a.fl_aktif', true)
+            ->orderBy('a.tgl_pesan', 'asc')
+            ->orderBy('a.jam_pesan', 'asc')
             ->get();
 
-        $response= $pesan;
+        $response= $data;
         return response()->success('Success',$response);
     }
 

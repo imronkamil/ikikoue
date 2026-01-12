@@ -182,6 +182,7 @@ class StockTransferSendController extends Controller
             c.fl_tutup AS fl_tutup_send")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
+        ->orderBy('b.no_urut','asc')
         ->get();
 
         return response()->success('Success',$data);
