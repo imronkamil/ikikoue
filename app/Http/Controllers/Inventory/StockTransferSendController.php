@@ -251,8 +251,8 @@ class StockTransferSendController extends Controller
         ->orderBy("a.rasio","asc")
         ->get();
 
-        //Master Bahan Beli Filter
-        $data['m_bahan_beli_filter']= Bahan::from('m_bahan as a')
+        //Master Bahan Stock Transfer Filter
+        $data['m_bahan_stock_transfer_filter']= Bahan::from('m_bahan as a')
         ->selectRaw("a.kd_bahan, a.nm_bahan, a.nm_bahan2, a.satuan, a.satuan2, a.konversi2,
             a.kd_grup_bahan, a.kd_tipe_bahan, a.kd_pajak_jual, a.kd_pajak_beli, a.kd_rak, a.barcode,
             a.isi, a.catatan, a.kd_level,
@@ -261,7 +261,7 @@ class StockTransferSendController extends Controller
             a.bahan_klp_id, a.nm_bahan_barcode, a.plu_client,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
         ->where("fl_aktif","true")
-        ->where("fl_beli","true")
+        ->where("fl_stock_transfer","true")
         ->orderBy("a.kd_bahan")
         ->get();
 

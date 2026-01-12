@@ -268,6 +268,23 @@ class UtilityController extends Controller
         return response()->success('Success',$data);
     }
 
+    public static function getPesan(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $kd_aplikasi=isset($request->kd_aplikasi) ? $request->kd_aplikasi : '';
+        $pesan= DB::table('m_pesan as a')
+            ->selectRaw('a.*')
+            ->where(function ($q) use ($user_id) {
+                $q->where('a.user_id', $user_id)
+                  ->orWhere('COALESCE(a.user_id,"")', '');
+            })
+            ->where('a.kd_aplikasi', $kd_aplikasi)
+            ->where('a.fl_aktif', true)
+            ->get();
+
+        $response= $pesan;
+        return response()->success('Success',$response);
+    }
+
     public static function getNewVersion(Request $request) {
         $kd_aplikasi=isset($request->kd_aplikasi) ? $request->kd_aplikasi : '';
         $newVersion= DB::table('objmodul as a')
