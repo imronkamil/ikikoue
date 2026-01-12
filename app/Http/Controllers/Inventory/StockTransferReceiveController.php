@@ -148,10 +148,9 @@ class StockTransferReceiveController extends Controller
             b.catatan, b.no_account, b.stok_fifo_key, b.qty_sisa, b.fl_tutup, b.konversi, b.satuan_dasar,
             c.dtl2_key AS dtl2_key_send, c.doc_key AS doc_key_send,
             c.rp_harga AS rp_harga_send, c.rp_total AS rp_total_send,
-            COALESCE(c.qty,0) AS qty_send, COALESCE(c.qty_sisa,0) AS qty_sisa_send,
-            c.qty-COALESCE(c.qty_sisa,0) AS qty_max_send,
+            COALESCE(c.qty,0) AS qty_send, COALESCE(b.qty_sisa,0) AS qty_sisa_send,
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_st,
-            c.fl_tutup AS fl_tutup_send")
+            b.fl_tutup AS fl_tutup_send")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
         ->orderBy("b.no_urut")
