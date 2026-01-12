@@ -52,7 +52,7 @@ class PurchaseInvoiceController extends Controller
         ->joinSub($subQ1,'b', function ($join) {
             $join->on('a.doc_key','=','b.gr_doc_key');
         })
-        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_po")
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_gr")
         ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
         //->get();
@@ -69,9 +69,23 @@ class PurchaseInvoiceController extends Controller
         ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
 
+        $subQ3= DB::table('t_ap_invoice2 as a')
+        ->leftJoin('t_po2 as b','b.dtl2_key','=','a.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS po_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query3= DB::table('t_po1 as a')
+        ->joinSub($subQ3,'b', function ($join) {
+            $join->on('a.doc_key','=','b.po_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_po")
+        ->where('a.fl_batal','false')
+        ->groupBy('b.doc_key');
+        //->get();
+
         $data['t_ap_invoice1']= APInvoice1::from('t_ap_invoice1 as a')
         ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
         ->leftJoinSub($query2,'c','a.doc_key','=','c.doc_key')
+        ->leftJoinSub($query3,'d','a.doc_key','=','d.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
@@ -80,7 +94,7 @@ class PurchaseInvoiceController extends Controller
             a.fl_rounding, a.fl_tutup, a.fl_batal, a.doc_key_jurnal,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
-            b.no_doc_po, c.no_doc_inv")
+            COALESCE(b.no_doc_gr,d.no_doc_po) AS no_doc_po, c.no_doc_inv")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         //->orderBy($sortBy,$sorting)
@@ -203,7 +217,10 @@ class PurchaseInvoiceController extends Controller
         //GR2
         $data['t_gr2']= GR1::from('t_gr1 as a')
         ->leftJoin('t_gr2 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('t_ap_invoice2 as c','b.dtl2_key','=','c.base_ref')
+        ->leftJoin('t_ap_invoice2 as c', function($join) {
+            $join->on('b.dtl2_key', '=', 'c.base_ref')
+                 ->where('a.base_type',11); //11=GR
+        })
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
             b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
@@ -227,6 +244,51 @@ class PurchaseInvoiceController extends Controller
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl3_key, b.doc_key, b.no_urut, b.no_account, b.nm_account, b.catatan,
             b.rp_bayar, b.rp_sisa, b.base_type, b.base_ref")
+        ->whereIn('a.doc_key',$doc_key)
+        ->where(DB::raw('COALESCE(b.rp_sisa,0)'),'>',0)
+        ->get();
+
+        $response['message']='Success';
+        return response()->success('Success',$data);
+    }
+
+    public function getItemPO(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : [];
+
+        //PO1
+        $data['t_po1']= PO1::from('t_po1 as a')
+        ->selectRaw("*")
+        ->where("a.doc_key",$doc_key)
+        ->first();
+
+        //PO2
+        $data['t_po2']= PO1::from('t_po1 as a')
+        ->leftJoin('t_po2 as b','a.doc_key','=','b.doc_key')
+        ->leftJoin('t_ap_invoice2 as c', function($join) {
+            $join->on('b.dtl2_key', '=', 'c.base_ref')
+                 ->where('a.base_type',10); //10=PO
+        })
+        ->selectRaw("a.kd_partner, a.no_doc,
+            b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
+            b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
+            b.persen_diskon4, b.rp_diskon4, b.kd_pajak, b.persen_pajak, b.rp_pajak, b.rp_harga_akhir,
+            b.qty_sisa, b.catatan, b.fl_tutup, b.base_type, b.base_ref, b.konversi, b.satuan_dasar,
+            c.doc_key AS doc_key_po, c.rp_harga AS rp_harga_po,
+            c.persen_diskon AS persen_diskon_po, c.rp_diskon AS rp_diskon_po,
+            c.persen_diskon2 AS persen_diskon2_po, c.rp_diskon2 AS rp_diskon2_po,
+            c.persen_diskon3 AS persen_diskon3_po, c.rp_diskon3 AS rp_diskon3_po,
+            c.persen_diskon4 AS persen_diskon4_po, c.rp_diskon4 AS rp_diskon4_po,
+            c.persen_pajak AS persen_pajak_po, c.rp_pajak AS rp_pajak_po,
+            c.rp_harga_akhir AS rp_harga_akhir_po,
+            COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po")
+        ->whereIn('a.doc_key',$doc_key)
+        ->where(DB::raw('b.qty + COALESCE(c.qty, 0)'), '>', 0)
+        ->get();
+
+        //PO3
+        $data['t_po3']= PO1::from('t_po1 as a')
+        ->leftJoin('t_po3 as b','a.doc_key','=','b.doc_key')
+        ->selectRaw("a.kd_partner, a.no_doc, b.*")
         ->whereIn('a.doc_key',$doc_key)
         ->where(DB::raw('COALESCE(b.rp_sisa,0)'),'>',0)
         ->get();
@@ -462,47 +524,102 @@ class PurchaseInvoiceController extends Controller
 
     public static function updateLinkData($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
-            $gr_doc_key = 0;
             $qty= 0;
             $qty_sisa= 0;
             $rp_sisa= 0;
             //GR1
-            $dataGR1= GR1::from("t_gr1 as a")
+            $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
-            foreach($dataGR1 as $recGR1) {
-                $gr_doc_key = $recGR1->doc_key;
-                //Update GR2
-                $gr2 = GR2::where('dtl2_key',$recGR1->dtl2_key)->first();
-                if ($gr2) {
-                    $gr2->qty_sisa = $gr2->qty_sisa + $recGR1->qty;
-                    $gr2->save();
-                    $qty = $qty + $gr2->qty;
-                    $qty_sisa = $qty_sisa + $gr2->qty_sisa;
+            foreach($dataGR as $recGR) {
+                $updateGR1= GR1::from("t_gr1 as a")
+                ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recGR->doc_key)
+                ->get();
+                foreach($updateGR1 as $updGR1) {
+                    //Update GR2
+                    $gr2 = GR2::where('dtl2_key',$updGR1->dtl2_key)->first();
+                    if ($gr2) {
+                        $gr2->qty_sisa = $gr2->qty_sisa + $updGR1->qty;
+                        $gr2->save();
+                        $qty = $qty + $gr2->qty;
+                        $qty_sisa = $qty_sisa + $gr2->qty_sisa;
+                    }
+                    //Update GR3
+                    $gr3 = GR3::where('dtl3_key',$updGR1->dtl3_key)->first();
+                    if ($gr3) {
+                        $gr3->rp_sisa = $gr3->rp_sisa + $updGR1->rp_bayar;
+                        $gr3->save();
+                        $rp_sisa = $rp_sisa + $gr3->rp_sisa;
+                    }
                 }
-                //Update GR3
-                $gr3 = GR3::where('dtl3_key',$recGR1->dtl3_key)->first();
-                if ($gr3) {
-                    $gr3->rp_sisa = $gr3->rp_sisa + $recGR1->rp_bayar;
-                    $gr3->save();
-                    $rp_sisa = $rp_sisa + $gr3->rp_sisa;
+                //Update GR1
+                $gr1= GR1::where("doc_key",$recGR->doc_key)->first();
+                if ($gr1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $gr1->fl_tutup= TRUE;
+                    } else {
+                        $gr1->fl_tutup= FALSE;
+                    };
+                    $gr1->save();
                 }
             }
-            //Update GR1
-            $updGR1= GR1::where("doc_key",$gr_doc_key)->first();
-            if ($updGR1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updGR1->fl_tutup= TRUE;
-                } else {
-                    $updGR1->fl_tutup= FALSE;
-                };
-                $updGR1->save();
+            //PO1
+            $dataPO= PO1::from("t_po1 as a")
+            ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+            ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+            ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+            ->selectRaw("a.doc_key")
+            ->where("d.doc_key",$doc_key)
+            ->groupBy("a.doc_key")
+            ->get();
+            foreach($dataPO as $recPO) {
+                $updatePO1= PO1::from("t_po1 as a")
+                ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPO->doc_key)
+                ->get();
+                foreach($updatePO1 as $updPO1) {
+                    //Update PO2
+                    $po2 = PO2::where('dtl2_key',$updPO1->dtl2_key)->first();
+                    if ($po2) {
+                        $po2->qty_sisa = $po2->qty_sisa + $updPO1->qty;
+                        $po2->save();
+                        $qty = $qty + $po2->qty;
+                        $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                    }
+                    //Update PO3
+                    $po3 = PO3::where('dtl3_key',$updPO1->dtl3_key)->first();
+                    if ($po3) {
+                        $po3->rp_sisa = $po3->rp_sisa + $updPO1->rp_bayar;
+                        $po3->save();
+                        $rp_sisa = $rp_sisa + $po3->rp_sisa;
+                    }
+                }
+                //Update PO1
+                $po1 = PO1::where("doc_key",$recPO->doc_key)->first();
+                if ($po1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $po1->fl_tutup= TRUE;
+                    } else {
+                        $po1->fl_tutup= FALSE;
+                    };
+                    $po1->save();
+                }
             }
             //APDeposit1
             $dataAPDP1= APDP1::from("t_apdp1 as a")
@@ -526,47 +643,102 @@ class PurchaseInvoiceController extends Controller
                 }
             }
         } elseif ($insert == TRUE) {
-            $gr_doc_key = 0;
             $qty= 0;
             $qty_sisa= 0;
             $rp_sisa= 0;
             //GR1
-            $dataGR1= GR1::from("t_gr1 as a")
+            $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
-            foreach($dataGR1 as $recGR1) {
-                $gr_doc_key = $recGR1->doc_key;
-                //Update GR2
-                $gr2 = GR2::where('dtl2_key',$recGR1->dtl2_key)->first();
-                if ($gr2) {
-                    $gr2->qty_sisa = $gr2->qty_sisa - $recGR1->qty;
-                    $gr2->save();
-                    $qty = $qty + $gr2->qty;
-                    $qty_sisa = $qty_sisa + $gr2->qty_sisa;
+            foreach($dataGR as $recGR) {
+                $updateGR1= GR1::from("t_gr1 as a")
+                ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recGR->doc_key)
+                ->get();
+                foreach($updateGR1 as $updGR1) {
+                    //Update GR2
+                    $gr2 = GR2::where('dtl2_key',$updGR1->dtl2_key)->first();
+                    if ($gr2) {
+                        $gr2->qty_sisa = $gr2->qty_sisa - $updGR1->qty;
+                        $gr2->save();
+                        $qty = $qty + $gr2->qty;
+                        $qty_sisa = $qty_sisa + $gr2->qty_sisa;
+                    }
+                    //Update GR3
+                    $gr3 = GR3::where('dtl3_key',$updGR1->dtl3_key)->first();
+                    if ($gr3) {
+                        $gr3->rp_sisa = $gr3->rp_sisa - $updGR1->rp_bayar;
+                        $gr3->save();
+                        $rp_sisa = $rp_sisa + $gr3->rp_sisa;
+                    }
                 }
-                //Update GR3
-                $gr3 = GR3::where('dtl3_key',$recGR1->dtl3_key)->first();
-                if ($gr3) {
-                    $gr3->rp_sisa = $gr3->rp_sisa - $recGR1->rp_bayar;
-                    $gr3->save();
-                    $rp_sisa = $rp_sisa + $gr3->rp_sisa;
+                //Update GR1
+                $gr1= GR1::where("doc_key",$recGR->doc_key)->first();
+                if ($gr1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $gr1->fl_tutup= TRUE;
+                    } else {
+                        $gr1->fl_tutup= FALSE;
+                    };
+                    $gr1->save();
                 }
             }
-            //Update GR1
-            $updGR1= GR1::where("doc_key",$gr_doc_key)->first();
-            if ($updGR1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updGR1->fl_tutup= TRUE;
-                } else {
-                    $updGR1->fl_tutup= FALSE;
-                };
-                $updGR1->save();
+            //PO1
+            $dataPO= PO1::from("t_po1 as a")
+            ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+            ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+            ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+            ->selectRaw("a.doc_key")
+            ->where("d.doc_key",$doc_key)
+            ->groupBy("a.doc_key")
+            ->get();
+            foreach($dataPO as $recPO) {
+                $updatePO1= PO1::from("t_po1 as a")
+                ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_ap_invoice2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_ap_invoice3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPO->doc_key)
+                ->get();
+                foreach($updatePO1 as $updPO1) {
+                    //Update PO2
+                    $po2 = PO2::where('dtl2_key',$updPO1->dtl2_key)->first();
+                    if ($po2) {
+                        $po2->qty_sisa = $po2->qty_sisa - $updPO1->qty;
+                        $po2->save();
+                        $qty = $qty + $po2->qty;
+                        $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                    }
+                    //Update PO3
+                    $po3 = PO3::where('dtl3_key',$updPO1->dtl3_key)->first();
+                    if ($po3) {
+                        $po3->rp_sisa = $po3->rp_sisa - $updPO1->rp_bayar;
+                        $po3->save();
+                        $rp_sisa = $rp_sisa + $po3->rp_sisa;
+                    }
+                }
+                //Update PO1
+                $po1 = PO1::where("doc_key",$recPO->doc_key)->first();
+                if ($po1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $po1->fl_tutup= TRUE;
+                    } else {
+                        $po1->fl_tutup= FALSE;
+                    };
+                    $po1->save();
+                }
             }
             //APDeposit1
             $dataAPDP1= APDP1::from("t_apdp1 as a")
@@ -589,11 +761,7 @@ class PurchaseInvoiceController extends Controller
                     $apDeposit->save();
                 }
             }
-            //var_dump($gr_doc_key,$qty,$qty_sisa,$rp_sisa);
         }
-        //var_dump($recGR1->doc_key,$rp_sisa);
-        //var_dump($qty,$qty_sisa,$rp_sisa);
-        $response['gr_doc_key'] = $gr_doc_key;
         $response['message'] = 'Set link data berhasil';
         return response()->success('Success',$response);
     }

@@ -67,6 +67,7 @@ class ResponseServiceProvider extends ServiceProvider
                     }
                 }
                 $body= $request->json()->all();
+                /*
                 $log = new UserActivity();
                 $log->log_timestamp=Date('Y-m-d H:i:s');
                 $log->user_id     = isset($session->user_id) ? $session->user_id :'N/A';
@@ -79,6 +80,7 @@ class ResponseServiceProvider extends ServiceProvider
                 $log->path_url    = $request->url();
                 $log->query_data  = json_encode($request->query(),JSON_PRETTY_PRINT);
                 $log->save();
+                */
             }
             return $factory->make($format);
         });
@@ -106,6 +108,7 @@ class ResponseServiceProvider extends ServiceProvider
             ];
 
             $body= $request->json()->all();
+            /*
             $log = new UserActivity();
             $log->log_timestamp=Date('Y-m-d H:i:s');
             $log->user_id     = isset($session->user_id) ? $session->user_id :'N/A';
@@ -118,6 +121,7 @@ class ResponseServiceProvider extends ServiceProvider
             $log->path_url    = $request->url();
             $log->query_data  = json_encode($request->query(),JSON_PRETTY_PRINT);
             $log->save();
+            */
             return $factory->make($format);
         });
     }

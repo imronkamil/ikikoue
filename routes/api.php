@@ -234,6 +234,7 @@ Route::group(['prefix' => 'purchase', 'as' => 'purchase', 'middleware' => 'appau
         Route::get('pi/get-linkdata', 'getLinkData');
         Route::get('pi/get-listgr', 'getListGR');
         Route::post('pi/get-itemgr', 'getItemGR');
+        Route::post('pi/get-itempo', 'getItemPO');
         Route::get('pi/get-invdp', 'getInvoiceDPRef');
         Route::get('pi/get-allref', 'getAllRef');
         Route::delete('pi', 'destroy');

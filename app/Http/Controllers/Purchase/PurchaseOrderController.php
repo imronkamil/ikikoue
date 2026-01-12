@@ -57,9 +57,22 @@ class PurchaseOrderController extends Controller
         ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
 
+        $subQ3= DB::table('t_po2 as a')
+        ->leftJoin('t_ap_invoice2 as b','a.dtl2_key','=','b.base_ref')
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS ap_doc_key');
+        //->groupBy('a.doc_key','b.doc_key');
+        $query3= DB::table('t_ap_invoice1 as a')
+        ->joinSub($subQ3,'b', function ($join) {
+            $join->on('a.doc_key','=','b.ap_doc_key');
+        })
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_ap")
+        ->where('a.fl_batal','false')
+        ->groupBy('b.doc_key');
+
         $data['t_po1']= PO1::from('t_po1 as a')
         ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
         ->leftJoinSub($query2,'c','a.doc_key','=','c.doc_key')
+        ->leftJoinSub($query3,'d','a.doc_key','=','d.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
             a.kd_partner, a.kd_kontak,
             a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
@@ -69,7 +82,7 @@ class PurchaseOrderController extends Controller
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.batal_tgl, a.batal_userid, a.batal_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
-            b.no_doc_pr, c.no_doc_gr,
+            b.no_doc_pr, COALESCE(c.no_doc_gr, d.no_doc_ap) AS no_doc_gr,
             CASE WHEN a.enum_tipe_po='0' THEN 'Aktif'
                  WHEN a.enum_tipe_po='1' THEN 'Closed'
                  WHEN a.enum_tipe_po='2' THEN 'Sebagian'
@@ -403,7 +416,7 @@ class PurchaseOrderController extends Controller
                 $response['message'] = 'Data sudah dibatalkan';
                 return response()->success('Success',$response);
             }
-            PurchaseOrderController::setLinkData($doc_key,FALSE);
+            PurchaseOrderController::updateLinkData($doc_key,FALSE);
             //Update PO1
             $po1->catatan = $catatan . "\n" . $po1->catatan;
             $po1->fl_batal = 'true';
@@ -416,7 +429,7 @@ class PurchaseOrderController extends Controller
         return response()->success('Success',$response);
     }
 
-    public static function setLinkData($doc_key = 0, $insert = FALSE) {
+    public static function updateLinkData($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
             //PR1 - Search PR1 doc_key linked to PO
             $dataPR= PR1::from("t_pr1 as a")
@@ -564,7 +577,7 @@ class PurchaseOrderController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
-            PurchaseOrderController::setLinkData($doc_key, FALSE);
+            PurchaseOrderController::updateLinkData($doc_key, FALSE);
             $po1= PO1::where('doc_key',$where['doc_key'])->first();
             if (!($po1)) {
                 $po1= new PO1();
@@ -712,7 +725,7 @@ class PurchaseOrderController extends Controller
                 $po3->save();
             }
 
-            PurchaseOrderController::setLinkData($po1->doc_key, TRUE);
+            PurchaseOrderController::updateLinkData($po1->doc_key, TRUE);
 
             DB::commit();
             $response['message'] = 'Simpan data berhasil';
