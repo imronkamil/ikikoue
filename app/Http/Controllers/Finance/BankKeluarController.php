@@ -346,7 +346,11 @@ class BankKeluarController extends Controller
                 //Update AP Invoice
                 $ap_invoice1 = APInvoice1::where('doc_key',$recAPInvoice->doc_key)->first();
                 if ($ap_invoice1) {
-                    $ap_invoice1->fl_tutup = TRUE;
+                    if ($ap_invoice1->rp_sisa - ($recAPInvoice->rp_bayar + $recAPInvoice->rp_diskon) == 0) {
+                        $ap_invoice1->fl_tutup = TRUE;
+                    } else {
+                        $ap_invoice1->fl_tutup = FALSE;
+                    }
                     $ap_invoice1->rp_bayar = $ap_invoice1->rp_bayar + ($recAPInvoice->rp_bayar + $recAPInvoice->rp_diskon);
                     $ap_invoice1->rp_sisa = $ap_invoice1->rp_sisa - ($recAPInvoice->rp_bayar + $recAPInvoice->rp_diskon);
                     $ap_invoice1->save();
@@ -363,7 +367,11 @@ class BankKeluarController extends Controller
                 //Update AP Credit
                 $ap_credit1 = APCredit1::where('doc_key',$recAPCredit->doc_key)->first();
                 if ($ap_credit1) {
-                    $ap_credit1->fl_tutup = TRUE;
+                    if ($ap_credit1->rp_sisa - ($recAPCredit->rp_bayar + $recAPCredit->rp_diskon) == 0) {
+                        $ap_credit1->fl_tutup = TRUE;
+                    } else {
+                        $ap_credit1->fl_tutup = FALSE;
+                    }
                     $ap_credit1->rp_bayar = $ap_credit1->rp_bayar + ($recAPCredit->rp_bayar + $recAPCredit->rp_diskon);
                     $ap_credit1->rp_sisa = $ap_credit1->rp_sisa - ($recAPCredit->rp_bayar + $recAPCredit->rp_diskon);
                     $ap_credit1->save();
