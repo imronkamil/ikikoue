@@ -550,7 +550,8 @@ class BankKeluarController extends Controller
                     $jurnalBank->rp_kredit = 0;
                 }
                 $jurnalBank->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalBank->catatan = $recJurnal->catatan_dtl;
+                //$jurnalBank->catatan = $recJurnal->catatan_dtl; //string too long 100
+                $jurnalBank->catatan = $recJurnal->catatan;
                 $jurnalBank->no_ref1 = $recJurnal->no_doc;
                 $jurnalBank->no_ref2 = '';
                 $jurnalBank->user_id = $user_id;
