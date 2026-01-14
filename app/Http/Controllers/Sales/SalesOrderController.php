@@ -1064,6 +1064,13 @@ class SalesOrderController extends Controller
             $toDelete = array_diff($existingIds, $newIds);
             SO2::whereIn('dtl2_key', $toDelete)->delete();
 
+            //Data SO2Detail
+            $existingIds = SO2::where('doc_key',$doc_key)->pluck('parent_dtl2_key')->toArray();
+            $newIds = collect($dataTrans2Detail)->pluck('parent_dtl2_key')->filter()->toArray();
+            // Delete items that are not in request
+            $toDelete = array_diff($existingIds, $newIds);
+            SO2::whereIn('parent_dtl2_key', $toDelete)->delete();
+
             //SO2::where('doc_key',$doc_key)->delete(); //Hapus data existing
             foreach($dataTrans2 as $recTrans2) {
                 $validator=Validator::make($recTrans2,[
@@ -1112,17 +1119,12 @@ class SalesOrderController extends Controller
                 $so2->sub_qty        = $recTrans2['sub_qty'];
                 $so2->fl_cetak_detail= $recTrans2['fl_cetak_detail'];
                 $so2->catatan_harga  = $recTrans2['catatan_harga'];
+                $so2->nomor_id       = $recTrans2['nomor_id'];
+                $so2->parent_nomor_id= $recTrans2['parent_nomor_id'];
                 $so2->save();
 
-                $dataTrx2Detail = collect($dataTrans2Detail)->where('no_urut_parent',$recTrans2['no_urut'])->toArray();
+                $dataTrx2Detail = collect($dataTrans2Detail)->where('parent_nomor_id',$recTrans2['nomor_id'])->toArray();
                 if ($dataTrx2Detail) {
-                    //Data SO2Detail
-                    $existingIds = SO2::where('parent_dtl2_key',$so2->dtl2_key)->pluck('dtl2_key')->toArray();
-                    $newIds = collect($dataTrx2Detail)->pluck('dtl2_key')->filter()->toArray();
-                    // Delete items that are not in request
-                    $toDelete = array_diff($existingIds, $newIds);
-                    SO2::whereIn('dtl2_key', $toDelete)->delete();
-
                     //SO2::where('doc_key',$doc_key)->delete(); //Hapus data existing
                     foreach($dataTrx2Detail as $recTrx2detail) {
                         $validator=Validator::make($recTrx2detail,[
@@ -1171,6 +1173,8 @@ class SalesOrderController extends Controller
                         $so2detail->sub_qty        = $recTrx2detail['sub_qty'];
                         $so2detail->fl_cetak_detail= $recTrx2detail['fl_cetak_detail'];
                         $so2detail->catatan_harga  = $recTrx2detail['catatan_harga'];
+                        $so2detail->nomor_id       = $recTrx2detail['nomor_id'];
+                        $so2detail->parent_nomor_id= $recTrx2detail['parent_nomor_id'];
                         $so2detail->save();
                     }
                 }

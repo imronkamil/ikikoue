@@ -316,8 +316,12 @@ class PembuanganController extends Controller
                         ->where("base_dtl2_key",$recTrans->dtl2_key)
                         ->where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
                     if ($dataStokFifoDtl) {
-                        $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + $recTrans->qty;
-                        $dataStokFifoDtl->save();
+                        if ($dataStokFifoDtl->qty + $recTrans->qty <= 0) {
+                            $dataStokFifoDtl->delete();
+                        } else {
+                            $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + $recTrans->qty;
+                            $dataStokFifoDtl->save();
+                        }
                     }
                 }
             }
@@ -371,7 +375,7 @@ class PembuanganController extends Controller
                         $dataBuang2Fifo->save();
 
                         //StokFIFO Detail
-                        $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
+                        /*$dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
                             ->where("kd_bahan",$recTrans->kd_bahan)
                             ->where("satuan",$recTrans->satuan)
                             ->where("base_type",$docTrans)
@@ -380,7 +384,9 @@ class PembuanganController extends Controller
                         if (!$dataStokFifoDtl) {
                             $dataStokFifoDtl= new StokFifoDtl();
                             $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
-                        }
+                        }*/
+                        $dataStokFifoDtl= new StokFifoDtl();
+                        $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
                         $dataStokFifoDtl->kd_bahan = $recTrans->kd_bahan;
                         $dataStokFifoDtl->satuan = $recTrans->satuan;
                         $dataStokFifoDtl->kd_lokasi = $recTrans->kd_lokasi;
@@ -450,7 +456,7 @@ class PembuanganController extends Controller
                     $dataBuang2Fifo->save();
 
                     //StokFIFO Detail
-                    $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
+                    /*$dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
                         ->where("kd_bahan",$recTrans->kd_bahan)
                         ->where("satuan",$recTrans->satuan)
                         ->where("base_type",$docTrans)
@@ -459,7 +465,9 @@ class PembuanganController extends Controller
                     if (!$dataStokFifoDtl) {
                         $dataStokFifoDtl= new StokFifoDtl();
                         $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
-                    }
+                    }*/
+                    $dataStokFifoDtl= new StokFifoDtl();
+                    $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
                     $dataStokFifoDtl->kd_bahan = $recTrans->kd_bahan;
                     $dataStokFifoDtl->satuan = $recTrans->satuan;
                     $dataStokFifoDtl->kd_lokasi = $recTrans->kd_lokasi;
