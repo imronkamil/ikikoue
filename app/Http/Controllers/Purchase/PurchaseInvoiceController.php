@@ -59,13 +59,13 @@ class PurchaseInvoiceController extends Controller
 
         $subQ2= DB::table('t_ap_invoice1 as a')
         ->leftJoin('t_bank_keluar2 as b','a.doc_key','=','b.base_ref')
-        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS inv_doc_key');
+        ->selectRaw('DISTINCT a.doc_key, b.doc_key AS bo_doc_key');
         //->groupBy('a.doc_key','b.doc_key');
         $query2= DB::table('t_bank_keluar1 as a')
         ->joinSub($subQ2,'b', function ($join) {
-            $join->on('a.doc_key','=','b.inv_doc_key');
+            $join->on('a.doc_key','=','b.bo_doc_key');
         })
-        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_inv")
+        ->selectRaw("b.doc_key, string_agg(a.no_doc,', ') AS no_doc_bo")
         ->where('a.fl_batal','false')
         ->groupBy('b.doc_key');
 
@@ -94,7 +94,7 @@ class PurchaseInvoiceController extends Controller
             a.fl_rounding, a.fl_tutup, a.fl_batal, a.doc_key_jurnal,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
             a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.cetak, a.nm_kirim, a.alamat_kirim,
-            COALESCE(b.no_doc_gr,d.no_doc_po) AS no_doc_po, c.no_doc_inv")
+            COALESCE(b.no_doc_gr,d.no_doc_po) AS no_doc_po, c.no_doc_bo")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         //->orderBy($sortBy,$sorting)

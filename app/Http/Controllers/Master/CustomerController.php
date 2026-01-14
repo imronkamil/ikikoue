@@ -125,6 +125,7 @@ class CustomerController extends Controller
 
         $data['m_bayar'] = Customer::from('m_bayar as a')
         ->selectRaw("*")
+        ->where('a.fl_aktif','=','true')
         ->orderBy('a.kd_bayar')
         ->get();
 
