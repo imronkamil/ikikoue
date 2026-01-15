@@ -34,6 +34,7 @@ class PembuanganController extends Controller
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
             a.catatan, a.rp_total, a.fl_trds, a.fl_batal, a.tgl_proses, a.doc_key_jurnal,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
+            a.batal_tgl, a.batal_userid, a.batal_lokasi,
             b.nm_lokasi")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
@@ -51,6 +52,7 @@ class PembuanganController extends Controller
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi_dari, a.kd_lokasi_ke,
             a.catatan, a.rp_total, a.fl_tutup, a.fl_trds, a.fl_batal, a.tgl_proses, a.doc_key_jurnal,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
+            a.batal_tgl, a.batal_userid, a.batal_lokasi,
             b.nm_lokasi")
         //->where('doc_key')
         ->get();
@@ -71,7 +73,7 @@ class PembuanganController extends Controller
     public function getBatal(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $data['t_buang1']= Buang1::from('t_buang1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.fl_batal")
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, COALESCE(a.fl_batal,'false') as fl_batal")
         ->where("a.doc_key",$doc_key)
         ->first();
         $response['value']= ($data['t_buang1']) ? $data['t_buang1']->fl_batal : 'false';
@@ -254,7 +256,7 @@ class PembuanganController extends Controller
             }
             PembuanganController::updateStok($doc_key,FALSE);
             //Update Buang1
-            $buang1->catatan = $catatan . "\n" . $stockTransferSend1->catatan;
+            $buang1->catatan = $catatan . "\n" . $buang1->catatan;
             $buang1->fl_batal = 'true';
             $buang1->batal_tgl = date('Y-m-d H:i:s');
             $buang1->batal_userid = $request->userid;

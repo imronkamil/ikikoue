@@ -34,7 +34,8 @@ class KoreksiStokController extends Controller
         $sortBy = $request->sortBy;
         //var_dump(date($tgl1));
         $data['t_koreksi1']= Koreksi1::from('t_koreksi1 as a')
-        ->selectRaw("a.*,
+        ->leftJoin('m_lokasi as b','a.kd_lokasi','=','b.kd_lokasi')
+        ->selectRaw("a.*, b.nm_lokasi,
             CASE
               WHEN a.enum_tran=1 THEN 'Write-Off'
               WHEN a.enum_tran=2 THEN 'Salah Item'
@@ -53,7 +54,8 @@ class KoreksiStokController extends Controller
 
     public function show2() {
         $data['t_koreksi1']= Koreksi1::from('t_koreksi1 as a')
-        ->selectRaw("a.*,
+        ->leftJoin('m_lokasi as b','a.kd_lokasi','=','b.kd_lokasi')
+        ->selectRaw("a.*, b.nm_lokasi,
             CASE
               WHEN a.enum_tran=1 THEN 'Write-Off'
               WHEN a.enum_tran=2 THEN 'Salah Item'
