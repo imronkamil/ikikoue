@@ -23,66 +23,49 @@ class ResponseServiceProvider extends ServiceProvider
     public function boot(ResponseFactory $factory)
     {
         $request = $this->app->request;
-        $factory->macro('success', function ($message = '', $data = null, $rowcount = 0) use ($factory,$request) {
+        $salt    = $this->salt;   // 👈 capture here
+
+        $factory->macro('success', function ($message = '', $data = null, $rowcount = 0)
+            use ($factory, $request, $salt) {
+
             $jwt = $request->header('x_jwt');
-            $uri=strtolower($request->getPathInfo());
-            $ignored=false;
+            $uri = strtolower($request->getPathInfo());
 
-            $method = $request->method();
-            $respon_code=200;
-            if ($request->isMethod('post')) {
-                $respon_code=201;
-            }
-
+            $respon_code = $request->isMethod('post') ? 201 : 200;
 
             $header = [
-                'status'=>'OK',
-                'error_no'=>0,
-                'message'=>$message
+                'status'   => 'OK',
+                'error_no' => 0,
+                'message'  => $message
             ];
 
-            $info = $data;
             $format = [
-                'header'=>$header,
-                'contents'=>$info
+                'header'   => $header,
+                'contents' => $data
             ];
 
-            if ($jwt<>"") {
-                $session=UserSession::selectRaw("token,user_id,created_date,refresh_date,expired_date,now() as curr_time")
-                ->where('token',$jwt)->first();
-                if ($session) {
-                    if ($session->curr_time>$session->expired_date){
-                        $token        = Hash::make($session->user_id.$this->salt.Date('YmdHis'));
-                        $refresh_date =  date('Y-m-d H:i:s', strtotime('+120 minutes'));
+            if ($jwt !== "") {
+                $session = UserSession::selectRaw("
+                        token,user_id,created_date,refresh_date,expired_date,now() as curr_time
+                    ")
+                    ->where('token', $jwt)
+                    ->first();
 
-                        $session->hash_code     = $token;
-                        $session->refresh_date  = $refresh_date;
-                        $session->save();
+                if ($session && $session->curr_time > $session->expired_date) {
 
-                        $format = [
-                                'header'=>$header,
-                                'contents'=>$info,
-                                'new_jwt'=>$token
-                            ];
-                    }
+                    // ✅ now safe: using $salt from closure
+                    $token = Hash::make($session->user_id . $salt . date('YmdHis'));
+                    $refresh_date = date('Y-m-d H:i:s', strtotime('+120 minutes'));
+
+                    $session->hash_code    = $token;
+                    $session->refresh_date = $refresh_date;
+                    $session->save();
+
+                    $format['new_jwt'] = $token;
                 }
-                $body= $request->json()->all();
-                /*
-                $log = new UserActivity();
-                $log->log_timestamp=Date('Y-m-d H:i:s');
-                $log->user_id     = isset($session->user_id) ? $session->user_id :'N/A';
-                $log->url_link    = $request->fullUrl();
-                $log->method      = isset($method) ? $method :'N/A';
-                $log->respon_code = isset($respon_code) ? $respon_code :'N/A';
-                $log->body_data   = json_encode($body,JSON_PRETTY_PRINT);
-                $log->respon_data = json_encode($format,JSON_PRETTY_PRINT);
-                $log->ip_number   = $request->ip();
-                $log->path_url    = $request->url();
-                $log->query_data  = json_encode($request->query(),JSON_PRETTY_PRINT);
-                $log->save();
-                */
             }
-            return $factory->make($format);
+
+            return $factory->make($format, $respon_code);
         });
 
         $factory->macro('error', function (string $message = '', $error_code = 0, $errors = []) use ($factory,$request) {
@@ -107,8 +90,8 @@ class ResponseServiceProvider extends ServiceProvider
                 'contents'=>$info
             ];
 
-            $body= $request->json()->all();
             /*
+            $body= $request->json()->all();
             $log = new UserActivity();
             $log->log_timestamp=Date('Y-m-d H:i:s');
             $log->user_id     = isset($session->user_id) ? $session->user_id :'N/A';

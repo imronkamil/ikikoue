@@ -181,6 +181,8 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util/get-notif-list', 'getNotifTransList');
         Route::get('util/get-pesan', 'getPesan');
         Route::get('util/get-newversion', 'getNewVersion');
+        Route::get('util/get-options', 'getOptions');
+        Route::get('util/get-profiles', 'getProfiles');
         Route::get('util/get-login-access', 'getLoginAccess');
         Route::get('util/get-objitem', 'getObjectItem');
         Route::delete('util', 'destroy');

@@ -13,6 +13,7 @@ use App\Models\Inventory\Opname1;
 use App\Models\Master\Project;
 use App\Models\Tools\System;
 use App\Models\Tools\PasUsers;
+use App\Models\Tools\Profile;
 use App\Helpers\Pages;
 
 class UtilityController extends Controller
@@ -296,6 +297,18 @@ class UtilityController extends Controller
 
         $response= $newVersion->version_number;
         return response()->success('Success',$response);
+    }
+
+    public static function getOptions(Request $request) {
+        $data['options']= DB::selectOne('SELECT pg_backend_pid() as pid, inet_client_addr() as ip');
+        return response()->success('Success',$data);
+    }
+
+    public static function getProfiles(Request $request) {
+        $data['i_profile']= Profile::from('i_profile as a')
+            ->selectRaw('a.*')
+            ->first();
+        return response()->success('Success',$data);
     }
 
     public static function getLoginAccess(Request $request) {
