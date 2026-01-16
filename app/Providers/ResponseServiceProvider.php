@@ -63,6 +63,22 @@ class ResponseServiceProvider extends ServiceProvider
 
                     $format['new_jwt'] = $token;
                 }
+
+                /*
+                $body= $request->json()->all();
+                $log = new UserActivity();
+                $log->log_timestamp=Date('Y-m-d H:i:s');
+                $log->user_id     = isset($session->user_id) ? $session->user_id :'N/A';
+                $log->url_link    = $request->fullUrl();
+                $log->method      = isset($method) ? $method :'N/A';
+                $log->respon_code = isset($respon_code) ? $respon_code :'N/A';
+                $log->body_data   = json_encode($body,JSON_PRETTY_PRINT);
+                $log->respon_data = json_encode($format,JSON_PRETTY_PRINT);
+                $log->ip_number   = $request->ip();
+                $log->path_url    = $request->url();
+                $log->query_data  = json_encode($request->query(),JSON_PRETTY_PRINT);
+                $log->save();
+                */
             }
 
             return $factory->make($format, $respon_code);

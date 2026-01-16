@@ -343,6 +343,37 @@ class ProduksiController extends Controller
     public static function updateStok($doc_key = 0, $insert = FALSE) {
         $docTrans=71; //Produksi
         if ($insert == FALSE) {
+            //Barang jadi yang dihasilkan
+            $dataProduksi1= Produksi1::from("t_produksi1 as a")
+            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
+                a.kd_bahan, a.satuan, qty_resep, a.qty_standar, a.qty_deviasi,
+                COALESCE(a.qty_standar,0)+COALESCE(a.qty_deviasi,0) AS qty, a.rp_harga, a.rp_total")
+            ->where("a.doc_key",$doc_key)
+            ->orderBy("b.dtl2_fifo_key")
+            ->get();
+            foreach($dataProduksi1 as $recProduksi1) {
+                //FIFO Header
+                $dataStokFifo= StokFifo::where("stok_fifo_key",$recProduksi1->stok_fifo_key)->first();
+                if ($dataStokFifo) {
+                    $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand - $recProduksi1->qty;
+                    $dataStokFifo->qty_in = $dataStokFifo->qty_in - $recProduksi1->qty;
+                    $dataStokFifo->save();
+                    //FIFO Detail
+                    $stokFifoKey = $dataStokFifo->stok_fifo_key;
+                    $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recProduksi1->kd_lokasi)
+                        ->where("kd_bahan",$recProduksi1->kd_bahan)
+                        ->where("satuan",$recProduksi1->satuan)
+                        ->where("base_type",$docTrans)
+                        ->where("base_doc_key",$recProduksi1->doc_key)
+                        ->where("base_dtl2_key",$recProduksi1->dtl2_key)
+                        ->where("stok_fifo_key",$recProduksi1->stok_fifo_key)->first();
+                    if ($dataStokFifoDtl) {
+                        $dataStokFifoDtl->qty = $dataStokFifoDtl->qty - $recProduksi1->qty;
+                        $dataStokFifoDtl->save();
+                    }
+                }
+            }
+            //Barang/Komponen yang dipakai
             $dataTrans= Produksi1::from("t_produksi1 as a")
             ->join("t_produksi2_fifo as b","a.doc_key","=","b.doc_key")
             ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
@@ -366,12 +397,77 @@ class ProduksiController extends Controller
                         ->where("base_dtl2_key",$recTrans->dtl2_key)
                         ->where("stok_fifo_key",$recTrans->stok_fifo_key)->first();
                     if ($dataStokFifoDtl) {
-                        $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + $recTrans->qty;
-                        $dataStokFifoDtl->save();
+                        if ($dataStokFifoDtl->qty - $recTrans->qty == 0) {
+                            $dataStokFifoDtl->delete();
+                        } else {
+                            $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + $recTrans->qty;
+                            $dataStokFifoDtl->save();
+                        }
                     }
                 }
             }
         } elseif ($insert == TRUE) {
+            //Barang jadi yang dihasilkan
+            $dataProduksi1= Produksi1::from("t_produksi1 as a")
+            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
+                a.kd_bahan, a.satuan, qty_resep, a.qty_standar, a.qty_deviasi,
+                COALESCE(a.qty_standar,0)+COALESCE(a.qty_deviasi,0) AS qty, a.rp_harga, a.rp_total")
+            ->where("a.doc_key",$doc_key)
+            ->orderBy("b.no_urut")
+            ->get();
+            foreach($dataProduksi1 as $recProduksi1) {
+                //FIFO Header
+                $dataStokFifo= StokFifo::where("kd_lokasi",$recProduksi1->kd_lokasi)
+                    ->where("kd_bahan",$recProduksi1->kd_bahan)
+                    ->where("satuan",$recProduksi1->satuan)
+                    ->where("base_type",$docTrans)
+                    ->where("base_doc_key",$recProduksi1->doc_key)
+                    ->where("base_dtl2_key",$recProduksi1->dtl2_key)->first();
+                if (!$dataStokFifo) {
+                    $dataStokFifo= new StokFifo();
+                    $dataStokFifo->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
+                    $dataGR2= GR2::where("dtl2_key",$recProduksi1->dtl2_key)->first();
+                    if ($dataGR2) {
+                        $dataGR2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
+                        $dataGR2->save();
+                    }
+                }
+                $dataStokFifo->kd_lokasi = $recProduksi1->kd_lokasi;
+                $dataStokFifo->kd_bahan = $recProduksi1->kd_bahan;
+                $dataStokFifo->satuan = $recProduksi1->satuan;
+                $dataStokFifo->tgl_doc = $recProduksi1->tgl_doc;
+                $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand + ($recProduksi1->qty);
+                $dataStokFifo->qty_in = $dataStokFifo->qty_in + ($recProduksi1->qty);
+                $dataStokFifo->rp_harga = $recProduksi1->rp_harga;
+                $dataStokFifo->base_type = $docTrans;
+                $dataStokFifo->base_doc_key = $recProduksi1->doc_key;
+                //$dataStokFifo->base_dtl2_key = $recProduksi1->dtl2_key;
+                $dataStokFifo->save();
+                //FIFO Detail
+                $stokFifoKey = $dataStokFifo->stok_fifo_key;
+                $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recProduksi1->kd_lokasi)
+                    ->where("kd_bahan",$recProduksi1->kd_bahan)
+                    ->where("satuan",$recProduksi1->satuan_dasar)
+                    ->where("base_type",$docTrans)
+                    ->where("base_doc_key",$recProduksi1->doc_key)
+                    ->where("base_dtl2_key",$recProduksi1->dtl2_key)->first();
+                if (!$dataStokFifoDtl) {
+                    $dataStokFifoDtl= new StokFifoDtl();
+                    $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
+                }
+                $dataStokFifoDtl->stok_fifo_key = $stokFifoKey;
+                $dataStokFifoDtl->kd_lokasi = $recProduksi1->kd_lokasi;
+                $dataStokFifoDtl->kd_bahan = $recProduksi1->kd_bahan;
+                $dataStokFifoDtl->satuan = $recProduksi1->satuan_dasar;
+                $dataStokFifoDtl->tgl_doc = $recProduksi1->tgl_doc;
+                $dataStokFifoDtl->no_doc = $recProduksi1->no_doc;
+                $dataStokFifoDtl->qty = $dataStokFifoDtl->qty + ($recProduksi1->qty);
+                $dataStokFifoDtl->base_type = $docTrans;
+                $dataStokFifoDtl->base_doc_key = $recProduksi1->doc_key;
+                //$dataStokFifoDtl->base_dtl2_key = $recProduksi1->dtl2_key;
+                $dataStokFifoDtl->save();
+            }
+            //Bahan/Komponen yang dipakai
             $qty= 0;
             $qtyStok=0;
             //Kosongkan Produksi2Fifo
@@ -421,7 +517,7 @@ class ProduksiController extends Controller
                         $dataProduksi2Fifo->save();
 
                         //StokFIFO Detail
-                        $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
+                        /*$dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
                             ->where("kd_bahan",$recTrans->kd_bahan)
                             ->where("satuan",$recTrans->satuan)
                             ->where("base_type",$docTrans)
@@ -430,7 +526,9 @@ class ProduksiController extends Controller
                         if (!$dataStokFifoDtl) {
                             $dataStokFifoDtl= new StokFifoDtl();
                             $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
-                        }
+                        }*/
+                        $dataStokFifoDtl= new StokFifoDtl();
+                        $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
                         $dataStokFifoDtl->kd_bahan = $recTrans->kd_bahan;
                         $dataStokFifoDtl->satuan = $recTrans->satuan;
                         $dataStokFifoDtl->kd_lokasi = $recTrans->kd_lokasi;
@@ -500,7 +598,7 @@ class ProduksiController extends Controller
                     $dataProduksi2Fifo->save();
 
                     //StokFIFO Detail
-                    $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
+                    /*$dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
                         ->where("kd_bahan",$recTrans->kd_bahan)
                         ->where("satuan",$recTrans->satuan)
                         ->where("base_type",$docTrans)
@@ -509,7 +607,9 @@ class ProduksiController extends Controller
                     if (!$dataStokFifoDtl) {
                         $dataStokFifoDtl= new StokFifoDtl();
                         $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
-                    }
+                    }*/
+                    $dataStokFifoDtl= new StokFifoDtl();
+                    $dataStokFifoDtl->stok_fifo_dtl_key = StokFifoDtl::max('stok_fifo_dtl_key') + 1;
                     $dataStokFifoDtl->kd_bahan = $recTrans->kd_bahan;
                     $dataStokFifoDtl->satuan = $recTrans->satuan;
                     $dataStokFifoDtl->kd_lokasi = $recTrans->kd_lokasi;
