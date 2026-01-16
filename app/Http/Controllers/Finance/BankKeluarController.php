@@ -286,6 +286,7 @@ class BankKeluarController extends Controller
                 return response()->success('Success',$response);
             }
             BankKeluarController::updateLinkData($doc_key,FALSE);
+            AccountDtl::where('base_doc_key',$doc_key)->delete();
             //Update PO1
             $bankKeluar1->catatan = $catatan . "\n" . $bankKeluar1->catatan;
             $bankKeluar1->fl_batal = 'true';
