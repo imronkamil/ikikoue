@@ -570,7 +570,7 @@ class GoodsReceiptController extends Controller
                 $dataStokFifo->tgl_doc = $recTrans->tgl_doc;
                 $dataStokFifo->qty_on_hand = $dataStokFifo->qty_on_hand + ($recTrans->qty*$recTrans->konversi);
                 $dataStokFifo->qty_in = $dataStokFifo->qty_in + ($recTrans->qty*$recTrans->konversi);
-                $dataStokFifo->rp_harga = $recTrans->rp_harga;
+                $dataStokFifo->rp_harga = $recTrans->rp_harga/$recTrans->konversi;
                 $dataStokFifo->base_type = $docTrans;
                 $dataStokFifo->base_doc_key = $recTrans->doc_key;
                 $dataStokFifo->base_dtl2_key = $recTrans->dtl2_key;

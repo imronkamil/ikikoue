@@ -301,6 +301,10 @@ class StockTransferController extends Controller
         $dataTrans1= $data['t_stock_transfer1'];
         $dataTrans2= $data['t_stock_transfer2'];
 
+        $dataTrans2= array_filter($dataTrans2, function ($item) {
+            return isset($item['kd_bahan']) && $item['kd_bahan'] !== null && $item['kd_bahan'] !== '';
+        });
+
         DB::beginTransaction();
         try {
             //Data Bahan
