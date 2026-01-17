@@ -1070,6 +1070,9 @@ class PurchaseInvoiceController extends Controller
         $dataTrans3= $data['t_ap_invoice3'];
         $dataTrans4= $data['t_ap_invoice4'];
 
+        $dataTrans2= array_filter($dataTrans2, function ($item) {
+            return isset($item['kd_bahan']) && $item['kd_bahan'] !== null && $item['kd_bahan'] !== '';
+        });
         $dataTrans4= array_filter($dataTrans4, function ($item) {
             return isset($item['rp_jumlah']) && $item['rp_jumlah'] > 0;
         });
