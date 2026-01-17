@@ -242,6 +242,7 @@ Route::group(['prefix' => 'purchase', 'as' => 'purchase', 'middleware' => 'appau
         Route::get('pi/get-allref', 'getAllRef');
         Route::delete('pi', 'destroy');
         Route::post('pi/set-batal', 'setBatal');
+        Route::post('pi/set-jurnal', 'setJurnal');
         Route::post('pi', 'store');
     });
     Route::controller(\Purchase\PurchaseReturnController::class)->group(function () {
@@ -422,3 +423,17 @@ Route::group(['prefix' => 'finance', 'as' => 'finance', 'middleware' => 'appauth
         Route::post('ardp', 'store');
     });
 });
+
+Route::group(['prefix' => 'accounting', 'as' => 'accounting', 'middleware' => 'appauth'], function () {
+    Route::controller(\Accounting\JurnalUmumController::class)->group(function () {
+        Route::get('jurnal-umum', 'show1');
+        Route::get('jurnal-umum/all', 'show2');
+        Route::get('jurnal-umum/get', 'get');
+        Route::get('jurnal-umum/get-batal', 'getBatal');
+        Route::get('jurnal-umum/get-allref', 'getAllRef');
+        Route::delete('jurnal-umum', 'destroy');
+        Route::post('jurnal-umum/set-batal', 'setBatal');
+        Route::post('jurnal-umum', 'store');
+    });
+});
+

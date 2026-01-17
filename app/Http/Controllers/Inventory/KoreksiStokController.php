@@ -422,11 +422,6 @@ class KoreksiStokController extends Controller
                 if (!$dataStokFifo) {
                     $dataStokFifo= new StokFifo();
                     $dataStokFifo->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
-                    $dataKoreksi2= Koreksi2::where("dtl2_key",$recKoreksi->dtl2_key)->first();
-                    if ($dataKoreksi2) {
-                        $dataKoreksi2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
-                        $dataKoreksi2->save();
-                    }
                 }
                 $dataStokFifo->kd_lokasi = $recKoreksi->kd_lokasi;
                 $dataStokFifo->kd_bahan = $recKoreksi->kd_bahan;
@@ -439,6 +434,12 @@ class KoreksiStokController extends Controller
                 $dataStokFifo->base_doc_key = $recKoreksi->doc_key;
                 $dataStokFifo->base_dtl2_key = $recKoreksi->dtl2_key;
                 $dataStokFifo->save();
+                //Update stok_fifo_key di koreksi2
+                $dataKoreksi2= Koreksi2::where("dtl2_key",$recKoreksi->dtl2_key)->first();
+                if ($dataKoreksi2) {
+                    $dataKoreksi2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
+                    $dataKoreksi2->save();
+                }
                 //FIFO Detail
                 $stokFifoKey = $dataStokFifo->stok_fifo_key;
                 $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recKoreksi->kd_lokasi)

@@ -840,6 +840,14 @@ class PurchaseInvoiceController extends Controller
         return response()->success('Success',$response);
     }
 
+    public function setJurnal(Request $request) {
+        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        PurchaseInvoiceController::generateJurnal($doc_key, $user_id);
+        $response['message'] = 'Set jurnal berhasil';
+        return response()->success('Success',$response);
+    }
+
     public function generateJurnal($doc_key = 0, $user_id = '') {
         //$doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         //$user_id=isset($request->user_id) ? $request->user_id : '';
@@ -868,23 +876,25 @@ class PurchaseInvoiceController extends Controller
         ->get();
         //Jurnal Debet (Pembelian)
         foreach($jurnal as $recJurnal) {
-            $jurnalAP= new AccountDtl();
-            $jurnalAP->dtl_key = DocNoController::getDocKey('doc_key');
-            $jurnalAP->no_account = $recJurnal->no_account_supplier;
-            $jurnalAP->kd_lokasi = $recJurnal->kd_lokasi;
-            $jurnalAP->enum_debet_kredit = 'D';
-            $jurnalAP->rp_debet = $recJurnal->rp_harga_akhir_bahan;
-            $jurnalAP->rp_kredit = 0;
-            $jurnalAP->tgl_doc = $recJurnal->tgl_doc;
-            $jurnalAP->catatan = $recJurnal->nm_partner;
-            $jurnalAP->no_ref1 = $recJurnal->no_doc;
-            $jurnalAP->no_ref2 = '';
-            $jurnalAP->user_id = $user_id;
-            $jurnalAP->base_type = 21; //Purchase Invoice
-            $jurnalAP->base_doc_key = $recJurnal->doc_key;
-            //$jurnalAP->base_dtl_key = $recJurnal->doc_key;
-            $jurnalAP->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
-            $jurnalAP->save();
+            if ($recJurnal->rp_harga_akhir_bahan <> 0) {
+                $jurnalAP= new AccountDtl();
+                $jurnalAP->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalAP->no_account = $recJurnal->no_account_supplier;
+                $jurnalAP->kd_lokasi = $recJurnal->kd_lokasi;
+                $jurnalAP->enum_debet_kredit = 'D';
+                $jurnalAP->rp_debet = $recJurnal->rp_harga_akhir_bahan;
+                $jurnalAP->rp_kredit = 0;
+                $jurnalAP->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalAP->catatan = $recJurnal->nm_partner;
+                $jurnalAP->no_ref1 = $recJurnal->no_doc;
+                $jurnalAP->no_ref2 = '';
+                $jurnalAP->user_id = $user_id;
+                $jurnalAP->base_type = 21; //Purchase Invoice
+                $jurnalAP->base_doc_key = $recJurnal->doc_key;
+                //$jurnalAP->base_dtl_key = $recJurnal->doc_key;
+                $jurnalAP->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalAP->save();
+            }
         }
 
         //Jurnal Biaya
@@ -897,23 +907,31 @@ class PurchaseInvoiceController extends Controller
         ->get();
         //Jurnal Debet (Biaya)
         foreach($jurnal as $recJurnal) {
-            $jurnalBiaya= new AccountDtl();
-            $jurnalBiaya->dtl_key = DocNoController::getDocKey('doc_key');
-            $jurnalBiaya->no_account = $recJurnal->no_account;
-            $jurnalBiaya->kd_lokasi = $recJurnal->kd_lokasi;
-            $jurnalBiaya->enum_debet_kredit = 'D';
-            $jurnalBiaya->rp_debet = $recJurnal->rp_biaya;
-            $jurnalBiaya->rp_kredit = 0;
-            $jurnalBiaya->tgl_doc = $recJurnal->tgl_doc;
-            $jurnalBiaya->catatan = $recJurnal->catatan;
-            $jurnalBiaya->no_ref1 = $recJurnal->no_doc;
-            $jurnalBiaya->no_ref2 = '';
-            $jurnalBiaya->user_id = $user_id;
-            $jurnalBiaya->base_type = 21; //Purchase Invoice
-            $jurnalBiaya->base_doc_key = $recJurnal->doc_key;
-            //$jurnalBiaya->base_dtl_key = $recJurnal->doc_key;
-            $jurnalBiaya->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
-            $jurnalBiaya->save();
+            if ($recJurnal->rp_biaya <> 0) {
+                $jurnalBiaya= new AccountDtl();
+                $jurnalBiaya->dtl_key = DocNoController::getDocKey('doc_key');
+                $jurnalBiaya->no_account = $recJurnal->no_account;
+                $jurnalBiaya->kd_lokasi = $recJurnal->kd_lokasi;
+                if ($recJurnal->rp_biaya > 0) {
+                    $jurnalBiaya->enum_debet_kredit = 'D';
+                    $jurnalBiaya->rp_debet = abs($recJurnal->rp_biaya);
+                    $jurnalBiaya->rp_kredit = 0;
+                } else {
+                    $jurnalBiaya->enum_debet_kredit = 'K';
+                    $jurnalBiaya->rp_debet = 0;
+                    $jurnalBiaya->rp_kredit = abs($recJurnal->rp_biaya);
+                }
+                $jurnalBiaya->tgl_doc = $recJurnal->tgl_doc;
+                $jurnalBiaya->catatan = $recJurnal->catatan;
+                $jurnalBiaya->no_ref1 = $recJurnal->no_doc;
+                $jurnalBiaya->no_ref2 = '';
+                $jurnalBiaya->user_id = $user_id;
+                $jurnalBiaya->base_type = 21; //Purchase Invoice
+                $jurnalBiaya->base_doc_key = $recJurnal->doc_key;
+                //$jurnalBiaya->base_dtl_key = $recJurnal->doc_key;
+                $jurnalBiaya->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
+                $jurnalBiaya->save();
+            }
         }
 
         //Jurnal PPN, Rounding

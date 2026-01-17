@@ -425,11 +425,6 @@ class StockTransferReceiveController extends Controller
                 if (!$dataStokFifo) {
                     $dataStokFifo= new StokFifo();
                     $dataStokFifo->stok_fifo_key = StokFifo::max('stok_fifo_key') + 1;
-                    $dataTrans2= StockTransfer2::where("dtl2_key",$recTrans->dtl2_key)->first();
-                    if ($dataTrans2) {
-                        $dataTrans2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
-                        $dataTrans2->save();
-                    }
                 }
                 $dataStokFifo->kd_lokasi = $recTrans->kd_lokasi;
                 $dataStokFifo->kd_bahan = $recTrans->kd_bahan;
@@ -442,6 +437,12 @@ class StockTransferReceiveController extends Controller
                 $dataStokFifo->base_doc_key = $recTrans->doc_key;
                 $dataStokFifo->base_dtl2_key = $recTrans->dtl2_key;
                 $dataStokFifo->save();
+                //Update StockTransferReceive2 Stok_Fifo_Key
+                $dataTrans2= StockTransfer2::where("dtl2_key",$recTrans->dtl2_key)->first();
+                if ($dataTrans2) {
+                    $dataTrans2->stok_fifo_key = $dataStokFifo->stok_fifo_key;
+                    $dataTrans2->save();
+                }
                 //FIFO Detail
                 $stokFifoKey = $dataStokFifo->stok_fifo_key;
                 $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
