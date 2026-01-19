@@ -142,16 +142,17 @@ class StockTransferReceiveController extends Controller
         //StockTransferSend2
         $data['t_stock_transfer_send2']= StockTransferSend1::from('t_stock_transfer_send1 as a')
         ->join('t_stock_transfer_send2 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('t_stock_transfer_receive2 as c','b.dtl2_key','c.base_ref')
+        //->leftJoin('t_stock_transfer_receive2 as c','b.dtl2_key','c.base_ref')
         ->selectRaw("a.kd_lokasi_dari, a.kd_lokasi_ke, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty_req, b.qty, b.rp_harga, b.rp_total,
-            b.catatan, b.no_account, b.stok_fifo_key, b.qty_sisa, b.fl_tutup, b.konversi, b.satuan_dasar,
-            c.dtl2_key AS dtl2_key_send, c.doc_key AS doc_key_send,
+            b.catatan, b.no_account, b.stok_fifo_key, b.qty_sisa, b.fl_tutup, b.konversi, b.satuan_dasar")
+            /*c.dtl2_key AS dtl2_key_send, c.doc_key AS doc_key_send,
             c.rp_harga AS rp_harga_send, c.rp_total AS rp_total_send,
             COALESCE(c.qty,0) AS qty_send, COALESCE(b.qty_sisa,0) AS qty_sisa_send,
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_st,
-            b.fl_tutup AS fl_tutup_send")
-        ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
+            b.fl_tutup AS fl_tutup_send")*/
+        //->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
+        ->where(DB::raw('COALESCE(b.qty_sisa,0)'),'>',0)
         ->whereIn('a.doc_key',$doc_key)
         ->orderBy("b.no_urut")
         ->get();

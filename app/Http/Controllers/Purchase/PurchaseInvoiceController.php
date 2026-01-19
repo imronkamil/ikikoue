@@ -526,9 +526,6 @@ class PurchaseInvoiceController extends Controller
 
     public static function updateLinkData($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
             //GR1
             $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
@@ -540,6 +537,9 @@ class PurchaseInvoiceController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataGR as $recGR) {
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
                 $updateGR1= GR1::from("t_gr1 as a")
                 ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
@@ -587,6 +587,9 @@ class PurchaseInvoiceController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataPO as $recPO) {
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
                 $updatePO1= PO1::from("t_po1 as a")
                 ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
@@ -645,9 +648,6 @@ class PurchaseInvoiceController extends Controller
                 }
             }
         } elseif ($insert == TRUE) {
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
             //GR1
             $dataGR= GR1::from("t_gr1 as a")
             ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
@@ -659,6 +659,9 @@ class PurchaseInvoiceController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataGR as $recGR) {
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
                 $updateGR1= GR1::from("t_gr1 as a")
                 ->leftJoin("t_gr2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_gr3 as c","a.doc_key","=","c.doc_key")
@@ -706,6 +709,9 @@ class PurchaseInvoiceController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataPO as $recPO) {
+                $qty= 0;
+                $qty_sisa= 0;
+                $rp_sisa= 0;
                 $updatePO1= PO1::from("t_po1 as a")
                 ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
@@ -772,8 +778,8 @@ class PurchaseInvoiceController extends Controller
         if ($insert == FALSE) {
             //APInvoice1
             $dataAPInv1= APInvoice1::from("t_ap_invoice1 as a")
-            ->leftJoin("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
-            ->leftJoin("t_gr2 as c","b.base_ref","=","c.dtl2_key")
+            ->join("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
+            ->join("t_gr2 as c","b.base_ref","=","c.dtl2_key")
             ->selectRaw("a.doc_key, b.dtl2_key, b.qty, b.rp_harga, b.konversi, b.satuan_dasar, c.dtl2_key as dtl2_key_gr")
             ->where("a.doc_key",$doc_key)
             ->orderBy("a.doc_key")
@@ -796,8 +802,8 @@ class PurchaseInvoiceController extends Controller
         } elseif ($insert == TRUE) {
             //APInvoice1
             $dataAPInv1= APInvoice1::from("t_ap_invoice1 as a")
-            ->leftJoin("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
-            ->leftJoin("t_gr2 as c","b.base_ref","=","c.dtl2_key")
+            ->join("t_ap_invoice2 as b","a.doc_key","=","b.doc_key")
+            ->join("t_gr2 as c","b.base_ref","=","c.dtl2_key")
             ->selectRaw("a.doc_key, a.tgl_doc, b.dtl2_key, b.kd_bahan, b.qty, b.rp_harga,
                 b.konversi, b.satuan_dasar, c.dtl2_key as dtl2_key_gr")
             ->where("a.doc_key",$doc_key)
