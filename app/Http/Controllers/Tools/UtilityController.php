@@ -209,6 +209,30 @@ class UtilityController extends Controller
         return response()->success('Success',$data);
     }
 
+    public static function getHakMenuAction(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $nm_menu=isset($request->nm_menu) ? $request->nm_menu : '';
+        if ($user_id == 'sa') {
+            $data['m_hak_access']= DB::table('m_hak_akses')
+            ->selectRaw('*')
+            ->where('kd_menu','=',$nm_menu)
+            ->get();
+        } else {
+            $data['m_hak_access']= DB::table('m_hak_akses')
+            ->selectRaw('*')
+            ->where('kd_menu','=',$nm_menu)
+            ->where('user_id','=',$user_id)
+            ->get();
+        }
+        if ($data['m_hak_access']->count()>0) {
+            $value = 'True';
+        } else {
+            $value = 'False';
+        }
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
     public static function getNotifTrans(Request $request) {
         //$user_id=isset($request->user_id) ? $request->user_id : '';
         $t_pr1= DB::table('t_pr1')

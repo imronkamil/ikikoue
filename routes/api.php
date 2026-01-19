@@ -177,6 +177,7 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util/get-fiscaldate-status', 'getPostingDateStatus');
         Route::get('util/get-kodeproject', 'getKodeProjectByLokasi');
         Route::get('util/get-hakmenu', 'getHakMenu');
+        Route::get('util/get-hakmenu-action', 'getHakMenuAction');
         Route::get('util/get-notif', 'getNotifTrans');
         Route::get('util/get-notif-list', 'getNotifTransList');
         Route::get('util/get-pesan', 'getPesan');
