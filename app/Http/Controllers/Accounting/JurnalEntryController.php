@@ -19,7 +19,7 @@ use App\Models\Tools\DocNoThn;
 use App\Http\Controllers\Tools\DocNoController;
 use App\Http\Controllers\Tools\UtilityController;
 
-class JurnalUmumController extends Controller
+class JurnalEntryController extends Controller
 {
     public function show1(Request $request) {
         $tgl1 = $request->tgl1;
@@ -60,7 +60,7 @@ class JurnalUmumController extends Controller
     public function getBatal(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $data['t_jurnal1']= Jurnal1::from('t_jurnal1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, COALESCE(a.fl_batal, 'false') AS fl_batal")
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.fl_batal")
         ->where("a.doc_key",$doc_key)
         ->first();
         $response['value']= ($data['t_jurnal1']) ? $data['t_jurnal1']->fl_batal : 'false';
@@ -211,7 +211,7 @@ class JurnalUmumController extends Controller
                     $jurnalUmum->rp_kredit = abs($recJurnal->rp_debet);
                 }
                 $jurnalUmum->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalUmum->catatan = $recJurnal->ket_account;
+                $jurnalUmum->catatan = $recJurnal->catatan;
                 $jurnalUmum->no_ref1 = $recJurnal->no_doc;
                 $jurnalUmum->no_ref2 = '';
                 $jurnalUmum->user_id = $user_id;
@@ -235,7 +235,7 @@ class JurnalUmumController extends Controller
                     $jurnalUmumK->rp_kredit = 0;
                 }
                 $jurnalUmumK->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalUmumK->catatan = $recJurnal->ket_account;
+                $jurnalUmumK->catatan = $recJurnal->catatan;
                 $jurnalUmumK->no_ref1 = $recJurnal->no_doc;
                 $jurnalUmumK->no_ref2 = '';
                 $jurnalUmumK->user_id = $user_id;

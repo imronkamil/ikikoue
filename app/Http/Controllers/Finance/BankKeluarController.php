@@ -585,9 +585,9 @@ class BankKeluarController extends Controller
         $dataTrans3= $data['t_bank_keluar3'];
 
         //Hanya jika rp_bayar != 0
-        $dataTrans2 = array_values(array_filter($dataTrans2, function ($item) {
-            return isset($item['rp_bayar']) && $item['rp_bayar'] != 0;
-        }));
+        $dataTrans2 = array_filter($dataTrans2, function ($item) {
+            return isset($item['rp_bayar']) && floatval($item['rp_bayar']) != 0;
+        });
 
         DB::beginTransaction();
         try {
