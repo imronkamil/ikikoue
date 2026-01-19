@@ -36,7 +36,7 @@ class PurchaseOrderController extends Controller
         ->leftJoin('t_pr2 as b','b.dtl2_key','=','a.base_ref')
         ->selectRaw('DISTINCT a.doc_key, b.doc_key AS pr_doc_key');
         //->groupBy('a.doc_key','b.doc_key');
-        $query1= DB::table('t_po1 as a')
+        $query1= DB::table('t_pr1 as a')
         ->joinSub($subQ1,'b', function ($join) {
             $join->on('a.doc_key','=','b.pr_doc_key');
         })
