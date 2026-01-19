@@ -493,13 +493,13 @@ class BankTerimaController extends Controller
                 $jurnalRounding->no_account = UtilityController::getAccountConfig('no_acc_bm_rounding');
                 $jurnalRounding->kd_lokasi = $recJurnal->kd_lokasi;
                 if ($recJurnal->rp_rounding > 0) {
-                    $jurnalRounding->enum_debet_kredit = 'D';
-                    $jurnalRounding->rp_debet = abs($recJurnal->rp_rounding);
-                    $jurnalRounding->rp_kredit = 0;
-                } else {
                     $jurnalRounding->enum_debet_kredit = 'K';
                     $jurnalRounding->rp_debet = 0;
                     $jurnalRounding->rp_kredit = abs($recJurnal->rp_rounding);
+                } else {
+                    $jurnalRounding->enum_debet_kredit = 'D';
+                    $jurnalRounding->rp_debet = abs($recJurnal->rp_rounding);
+                    $jurnalRounding->rp_kredit = 0;
                 }
                 $jurnalRounding->tgl_doc = $recJurnal->tgl_doc;
                 $jurnalRounding->catatan = substr($recJurnal->catatan, 0, 100);
