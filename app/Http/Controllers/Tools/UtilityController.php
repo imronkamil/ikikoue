@@ -15,6 +15,7 @@ use App\Models\Tools\System;
 use App\Models\Tools\PasUsers;
 use App\Models\Tools\Profile;
 use App\Helpers\Pages;
+use App\Services\SystemService;
 
 class UtilityController extends Controller
 {
@@ -120,70 +121,93 @@ class UtilityController extends Controller
         return $no_account;
     }
 
-    public static function getStringSys(string $system_id) {
+    public static function getStringLocal(string $system_id) {
         $data['i_system']= System::from('i_system as a')
-        ->selectRaw("a.system_id, a.description, a.value_string")
+        ->selectRaw("a.system_id, a.description, a.value_nvarchar")
         ->where("a.system_id","=",$system_id)
         ->first();
-        $value = ($data['i_system']) ? $data['i_system']->value_string : '';
-        $response['value'] = $value;
-        //return response()->success('Success',$response);
+        $value = ($data['i_system']) ? $data['i_system']->value_nvarchar : '';
         return $value;
     }
 
-    public static function getIntegerSys(string $system_id) {
+    public static function getStringSys(Request $request) {
+        $system_id=isset($request->system_id) ? $request->system_id : '';
+        $value= self::getStringLocal($system_id);
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
+    public static function getIntegerLocal(string $system_id) {
         $data['i_system']= System::from('i_system as a')
         ->selectRaw("a.system_id, a.description, a.value_int")
         ->where("a.system_id","=",$system_id)
         ->first();
         $value = ($data['i_system']) ? $data['i_system']->value_int : '';
-        $response['value'] = $value;
-        //return response()->success('Success',$response);
         return $value;
     }
 
-    public static function getDecimalSys(string $system_id) {
+    public static function getIntegerSys(Request $request) {
+        $system_id=isset($request->system_id) ? $request->system_id : '';
+        $value= self::getIntegerLocal($system_id);
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
+    public static function getDecimalLocal(string $system_id) {
         $data['i_system']= System::from('i_system as a')
         ->selectRaw("a.system_id, a.description, a.value_decimal")
         ->where("a.system_id","=",$system_id)
         ->first();
         $value = ($data['i_system']) ? $data['i_system']->value_decimal : '';
-        $response['value'] = $value;
-        //return response()->success('Success',$response);
         return $value;
     }
 
-    public static function getDateSys(string $system_id) {
+    public static function getDecimalSys(Request $request) {
+        $system_id=isset($request->system_id) ? $request->system_id : '';
+        $value= self::getDecimalLocal($system_id);
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
+    public static function getDateLocal(string $system_id) {
         $data['i_system']= System::from('i_system as a')
         ->selectRaw("a.system_id, a.description, a.value_date")
         ->where("a.system_id","=",$system_id)
         ->first();
         $value = ($data['i_system']) ? $data['i_system']->value_date : '';
-        $response['value'] = $value;
-        //return response()->success('Success',$response);
         return $value;
     }
 
-    public static function getBooleanSys(string $system_id) {
+    public static function getDateSys(Request $request) {
+        $system_id=isset($request->system_id) ? $request->system_id : '';
+        $value= self::getDateLocal($system_id);
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
+    public static function getBooleanLocal(string $system_id) {
         $data['i_system']= System::from('i_system as a')
         ->selectRaw("a.system_id, a.description, a.value_boolean")
         ->where("a.system_id","=",$system_id)
         ->first();
         $value = ($data['i_system']) ? $data['i_system']->value_boolean : '';
-        $response['value'] = $value;
-        //return response()->success('Success',$response);
         return $value;
     }
 
+    public static function getBooleanSys(Request $request) {
+        $system_id=isset($request->system_id) ? $request->system_id : '';
+        $value= self::getBooleanLocal($system_id);
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
     public static function getAutoStok() {
-        $stok= UtilityController::getBooleanSys("FLAG_AUTO_STOK");
-        $response['value'] = $stok;
+        $stok= UtilityController::getBooleanLocal("FLAG_AUTO_STOK");
         return $stok;
     }
 
     public static function getAutoJurnal() {
-        $jurnal= UtilityController::getBooleanSys("FLAG_AUTO_JURNAL");
-        $response['value'] = $jurnal;
+        $jurnal= UtilityController::getBooleanLocal("FLAG_AUTO_JURNAL");
         return $jurnal;
     }
 
@@ -406,6 +430,17 @@ class UtilityController extends Controller
         }
 
         return response()->success('Success',$data);
+    }
+
+    public static function getPersenPajak(Request $request) {
+        $kd_pajak=isset($request->kd_pajak) ? $request->kd_pajak : '';
+        $data['m_pajak']= DB::table('m_pajak as a')
+            ->selectRaw('a.*')
+            ->where('a.kd_pajak',$kd_pajak)
+            ->first();
+        $value = ($data['m_pajak']) ? $data['m_pajak']->persen_pajak : '';
+        $response['value'] = $value;
+        return response()->success('Success',$response);
     }
 
     public function destroy(Request $request) {

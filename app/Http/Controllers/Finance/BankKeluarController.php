@@ -12,6 +12,7 @@ use App\Models\Finance\BankKeluar2;
 use App\Models\Finance\BankKeluar3;
 use App\Models\Purchase\APInvoice1;
 use App\Models\Purchase\APCredit1;
+use App\Models\Sales\SO1;
 use App\Models\Master\Lokasi;
 use App\Models\Master\Account;
 use App\Models\Master\Pajak;
@@ -128,20 +129,22 @@ class BankKeluarController extends Controller
         $kd_lokasi=isset($request->kd_lokasi) ? $request->kd_lokasi : 0;
         $kd_partner=isset($request->kd_partner) ? $request->kd_partner : 0;
         $data['t_bank_keluar2']= BankKeluar2::from('t_so1 as a')
-        ->leftJoin('t_so5 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('m_bayar as c','b.kd_bayar','=','c.kd_bayar')
+        /*->leftJoin('t_so5 as b','a.doc_key','=','b.doc_key')
+        ->leftJoin('m_bayar as c','b.kd_bayar','=','c.kd_bayar')*/
         ->leftJoin('i_doctype as d', function ($join) {
             $join->where('d.base_type', 31); //31=Sales Order
         })
-        ->selectRaw("a.no_doc, a.kd_partner, a.nm_partner, b.*,
+        /*->selectRaw("a.no_doc, a.kd_partner, a.nm_partner, b.*,
             c.enum_format, c.persen_format, d.base_name as base_type_name,
-            CASE WHEN c.enum_bayar='D' THEN 'Uang Muka' ELSE 'Pelunasan' END AS ket_enum_bayar")
+            CASE WHEN c.enum_bayar='D' THEN 'Uang Muka' ELSE 'Pelunasan' END AS ket_enum_bayar")*/
+        ->selectRaw("a.*, d.base_name as base_type_name")
         //->where("a.kd_lokasi",$kd_lokasi)
         ->where("a.kd_partner",$kd_partner)
         //->whereColumn(DB::raw("COALESCE(b.rp_cair,0)"),"<","b.rp_tagihan")
-        ->whereColumn(DB::raw("COALESCE(b.rp_cair,0)"),">",DB::raw("0"))
+        //->whereColumn(DB::raw("COALESCE(b.rp_cair,0)"),">",DB::raw("0"))
+        ->whereColumn(DB::raw("COALESCE(a.rp_sisa,0)"),"<",DB::raw("0"))
         ->orderBy("a.tgl_doc","desc")
-        ->orderBy("b.no_urut")
+        //->orderBy("b.no_urut")
         ->get();
         return response()->success('Success',$data);
     }
@@ -335,6 +338,27 @@ class BankKeluarController extends Controller
                     $ap_credit1->save();
                 }
             }
+            //Sales Order
+            $dataSO= BankKeluar2::from("t_bank_keluar2 as a")
+            ->leftJoin("t_so1 as b","a.base_ref","=","b.doc_key")
+            ->selectRaw("b.doc_key, b.rp_sisa, a.rp_bayar, a.rp_diskon")
+            ->where("a.doc_key",$doc_key)
+            ->where("a.base_type",31) //31=Sales Order
+            ->get();
+            foreach($dataSO as $recSO) {
+                //Update Sales Order
+                $so1 = SO1::where('doc_key',$recSO->doc_key)->first();
+                if ($so1) {
+                    if ($so1->rp_sisa - ($recSO->rp_bayar + $recSO->rp_diskon) == 0) {
+                        $so1->fl_tutup = TRUE;
+                    } else {
+                        $so1->fl_tutup = FALSE;
+                    }
+                    $so1->rp_bayar = $so1->rp_bayar + ($recSO->rp_bayar + $recSO->rp_diskon);
+                    $so1->rp_sisa = $so1->rp_sisa - ($recSO->rp_bayar + $recSO->rp_diskon);
+                    $so1->save();
+                }
+            }
         } elseif ($insert == TRUE) {
             //AP Invoice
             $dataAPInvoice= BankKeluar2::from("t_bank_keluar2 as a")
@@ -376,6 +400,27 @@ class BankKeluarController extends Controller
                     $ap_credit1->rp_bayar = $ap_credit1->rp_bayar + ($recAPCredit->rp_bayar + $recAPCredit->rp_diskon);
                     $ap_credit1->rp_sisa = $ap_credit1->rp_sisa - ($recAPCredit->rp_bayar + $recAPCredit->rp_diskon);
                     $ap_credit1->save();
+                }
+            }
+            //Sales Order
+            $dataSO= BankKeluar2::from("t_bank_keluar2 as a")
+            ->leftJoin("t_so1 as b","a.base_ref","=","b.doc_key")
+            ->selectRaw("b.doc_key, b.rp_sisa, a.rp_bayar, a.rp_diskon")
+            ->where("a.doc_key",$doc_key)
+            ->where("a.base_type",31) //31=Sales Order
+            ->get();
+            foreach($dataSO as $recSO) {
+                //Update Sales Order
+                $so1 = SO1::where('doc_key',$recSO->doc_key)->first();
+                if ($so1) {
+                    if ($so1->rp_sisa - ($recSO->rp_bayar + $recSO->rp_diskon) == 0) {
+                        $so1->fl_tutup = TRUE;
+                    } else {
+                        $so1->fl_tutup = FALSE;
+                    }
+                    $so1->rp_bayar = $so1->rp_bayar - ($recSO->rp_bayar + $recSO->rp_diskon);
+                    $so1->rp_sisa = $so1->rp_sisa + ($recSO->rp_bayar + $recSO->rp_diskon);
+                    $so1->save();
                 }
             }
         }
@@ -431,7 +476,7 @@ class BankKeluarController extends Controller
 
         //Jurnal Biaya
         $jurnal= BankKeluar1::from('t_bank_keluar1 as a')
-        ->leftJoin('t_bank_keluar2 as b','a.doc_key','=','b.doc_key')
+        ->leftJoin('t_bank_keluar3 as b','a.doc_key','=','b.doc_key')
         ->selectRaw("b.*, a.tgl_doc, a.no_doc, a.kd_lokasi")
         ->where("a.doc_key",$doc_key)
         ->whereRaw("COALESCE(b.rp_bayar,0) <> 0")
@@ -727,9 +772,9 @@ class BankKeluarController extends Controller
             DB::commit();
             $bk2 = BankKeluar2::where('doc_key',$doc_key)->first();
 
-            $response['doc_key'] = $doc_key;
+            /*$response['doc_key'] = $doc_key;
             $response['trans2'] = $dataTrans2;
-            $response['bk2'] = $bk2;
+            $response['bk2'] = $bk2;*/
             $response['message'] = 'Simpan data berhasil';
             return response()->success('Success',$response);
 

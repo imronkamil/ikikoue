@@ -182,6 +182,11 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util', 'show1');
         Route::get('util/all', 'show2');
         Route::get('util/get', 'get');
+        Route::get('util/get-string-sys', 'getStringSys');
+        Route::get('util/get-integer-sys', 'getIntegerSys');
+        Route::get('util/get-decimal-sys', 'getDecimalSys');
+        Route::get('util/get-date-sys', 'getDateSys');
+        Route::get('util/get-boolean-sys', 'getBooleanSys');
         Route::get('util/get-status-bytglopname', 'getStatusByTglOpname');
         Route::get('util/get-fiscaldate-status', 'getPostingDateStatus');
         Route::get('util/get-kodeproject', 'getKodeProjectByLokasi');
@@ -195,6 +200,7 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util/get-profiles', 'getProfiles');
         Route::get('util/get-login-access', 'getLoginAccess');
         Route::get('util/get-objitem', 'getObjectItem');
+        Route::get('util/get-persen-pajak', 'getPersenPajak');
         Route::delete('util', 'destroy');
         Route::post('util', 'store');
     });

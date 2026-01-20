@@ -665,7 +665,7 @@ class BankTerimaController extends Controller
 
         //Jurnal Biaya
         $jurnal= BankTerima1::from('t_bank_keluar1 as a')
-        ->leftJoin('t_bank_keluar2 as b','a.doc_key','=','b.doc_key')
+        ->leftJoin('t_bank_keluar3 as b','a.doc_key','=','b.doc_key')
         ->selectRaw("b.*, a.tgl_doc, a.no_doc, a.kd_lokasi")
         ->where("a.doc_key",$doc_key)
         ->whereRaw("COALESCE(b.rp_bayar,0) <> 0")

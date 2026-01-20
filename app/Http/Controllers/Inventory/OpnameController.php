@@ -19,7 +19,7 @@ use App\Models\Stok\StokFifoDtl;
 use App\Http\Controllers\Tools\DocNoController;
 use App\Http\Controllers\Tools\UtilityController;
 
-class GoodsReceiptController extends Controller
+class OpnameController extends Controller
 {
     public function show1(Request $request) {
         $tgl1 = $request->tgl1;

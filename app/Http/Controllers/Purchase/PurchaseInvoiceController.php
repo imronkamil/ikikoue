@@ -794,7 +794,7 @@ class PurchaseInvoiceController extends Controller
                 }
                 $stokFifo = StokFifo::where('base_dtl2_key',$recAPInv1->dtl2_key_gr)->first();
                 if ($stokFifo) {
-                    $stokFifo->rp_harga = $recAPInv1->rp_harga;
+                    $stokFifo->rp_harga = $recAPInv1->rp_harga/$recAPInv1->konversi;
                     $stokFifo->save();
                 }
             }
@@ -813,7 +813,7 @@ class PurchaseInvoiceController extends Controller
                 //Update GR2
                 $gr2 = GR2::where('dtl2_key',$recAPInv1->dtl2_key_gr)->first();
                 if ($gr2) {
-                    $gr2->rp_harga = $recAPInv1->rp_harga/$recAPInv1->konversi;
+                    $gr2->rp_harga = $recAPInv1->rp_harga;
                     $gr2->rp_harga_akhir = $recAPInv1->rp_harga * $gr2->qty;
                     $gr2->save();
                 }
