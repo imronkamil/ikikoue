@@ -134,6 +134,13 @@ Route::group(['prefix' => 'master', 'as' => 'master', 'middleware' => 'appauth']
         Route::delete('bayar', 'destroy');
         Route::post('bayar', 'store');
     });
+    Route::controller(\Master\BankController::class)->group(function () {
+        Route::get('bank', 'show1');
+        Route::get('bank/all', 'show2');
+        Route::get('bank/get', 'get');
+        Route::delete('bank', 'destroy');
+        Route::post('bank', 'store');
+    });
     Route::controller(\Master\CustomerController::class)->group(function () {
         Route::get('customer', 'show1');
         Route::get('customer/all', 'show2');
