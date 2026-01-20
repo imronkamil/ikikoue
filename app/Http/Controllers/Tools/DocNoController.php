@@ -111,6 +111,16 @@ class DocNoController extends Controller
         return response()->success('Success',$response);
     }
 
+    public static function getDocnoIdFromName(Request $request) {
+        $nm_docno=isset($request->nm_docno) ? $request->nm_docno : '';
+        $data= DB::table('i_docno as a')
+            ->selectRaw('a.*')
+            ->where('a.nm_docno',$nm_docno)
+            ->first();
+        $response['value'] = $data->docno_id;
+        return response()->success('Success',$response);
+    }
+
     public static function getDocNoTest(Request $request) {
         $dept=$request->dept;
         $partner=$request->partner;
