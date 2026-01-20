@@ -164,6 +164,7 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('docno/get', 'get');
         Route::get('docno/get-allref', 'getAllRef');
         Route::get('docno/get-docno', 'getDocNo');
+        Route::get('docno/get-default-docno', 'getDefaultDocnoId');
         Route::get('docno/get-docnotest', 'getDocNoTest');
         Route::post('docno/set-docno', 'setDocNo');
         Route::delete('docno', 'destroy');

@@ -100,6 +100,17 @@ class DocNoController extends Controller
         return $doc_key;
     }
 
+    public static function getDefaultDocnoId(Request $request) {
+        $base_type=isset($request->base_type) ? $request->base_type : '';
+        $data= DB::table('i_docno as a')
+            ->selectRaw('a.*')
+            ->where('a.base_type',$base_type)
+            ->where('a.fl_default',true)
+            ->first();
+        $response['value'] = $data->docno_id;
+        return response()->success('Success',$response);
+    }
+
     public static function getDocNoTest(Request $request) {
         $dept=$request->dept;
         $partner=$request->partner;

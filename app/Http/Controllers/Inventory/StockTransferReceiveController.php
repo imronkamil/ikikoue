@@ -86,7 +86,7 @@ class StockTransferReceiveController extends Controller
     public function getBatal(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $data['t_stock_transfer_receive1']= StockTransferReceive1::from('t_stock_transfer_receive1 as a')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.fl_batal")
+        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, COALESCE(a.fl_batal,false) AS fl_batal")
         ->where("a.doc_key",$doc_key)
         ->first();
         $response['value']= ($data['t_stock_transfer_receive1']) ? $data['t_stock_transfer_receive1']->fl_batal : 'false';
