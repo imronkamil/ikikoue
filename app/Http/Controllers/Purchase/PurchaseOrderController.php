@@ -186,11 +186,17 @@ class PurchaseOrderController extends Controller
 
     public function getListItemPR(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : [];
+        $po_doc_key=isset($request->po_doc_key) ? $request->po_doc_key : 0;
 
+        $subQ1= PO1::from('t_po1 as a')
+        ->join('t_po2 as b','a.doc_key','=','b.doc_key')
+        ->selectRaw('a.fl_batal, b.*')
+        ->where('a.doc_key',$po_doc_key);
         $data['t_pr']= PO1::from('t_pr1 as a')
         ->join('t_pr2 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
-        ->leftJoin('t_po1 as e','c.doc_key','e.doc_key')
+        ->leftJoinSub($subQ1,'c', function ($join) {
+            $join->on('b.dtl2_key','=','c.base_ref');
+        })
         ->leftJoin('m_bahan as d','b.kd_bahan','d.kd_bahan')
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
@@ -207,7 +213,7 @@ class PurchaseOrderController extends Controller
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po,
             COALESCE(a.fl_batal,false) AS fl_cek")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
-        ->where(DB::raw('COALESCE(e.fl_batal,false)'),'=','false')
+        ->where(DB::raw('COALESCE(c.fl_batal,false)'),'=','false')
         ->whereIn('a.doc_key',$doc_key)
         ->orderBy('a.doc_key')
         ->orderBy('b.no_urut')
@@ -218,6 +224,7 @@ class PurchaseOrderController extends Controller
 
     public function getItemPR(Request $request) {
         $dtl2_key=isset($request->dtl2_key) ? $request->dtl2_key : [];
+        $po_doc_key=isset($request->po_doc_key) ? $request->po_doc_key : 0;
 
         //PR1
         /*$data['t_pr1']= PR1::from('t_pr1 as a')
@@ -233,10 +240,17 @@ class PurchaseOrderController extends Controller
         ->whereIn("b.dtl2_key",$dtl2_key)
         ->first();*/
 
+        $subQ1= PO1::from('t_po1 as a')
+        ->join('t_po2 as b','a.doc_key','=','b.doc_key')
+        ->selectRaw('a.fl_batal, b.*')
+        ->where('a.doc_key',$po_doc_key);
         $data['t_pr2']= PO1::from('t_pr1 as a')
         ->join('t_pr2 as b','a.doc_key','=','b.doc_key')
-        ->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
-        ->leftJoin('t_po1 as e','c.doc_key','e.doc_key')
+        ->leftJoinSub($subQ1,'c', function ($join) {
+            $join->on('b.dtl2_key','=','c.base_ref');
+        })
+        //->leftJoin('t_po2 as c','b.dtl2_key','c.base_ref')
+        //->leftJoin('t_po1 as e','c.doc_key','e.doc_key')
         ->selectRaw("a.kd_partner, a.no_doc,
             b.dtl2_key, b.doc_key, b.no_urut, b.kd_bahan, b.satuan, b.qty, b.rp_harga,
             b.persen_diskon, b.rp_diskon, b.persen_diskon2, b.rp_diskon2, b.persen_diskon3, b.rp_diskon3,
@@ -251,7 +265,7 @@ class PurchaseOrderController extends Controller
             c.rp_harga_akhir AS rp_harga_akhir_po,
             COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0) AS qty_sisa_po")
         ->where(DB::raw('COALESCE(b.qty_sisa,0)+COALESCE(c.qty,0)'),'>',0)
-        ->where(DB::raw('COALESCE(e.fl_batal,false)'),'=','false')
+        ->where(DB::raw('COALESCE(c.fl_batal,false)'),'=','false')
         ->whereIn("b.dtl2_key",$dtl2_key)
         ->orderBy('a.doc_key')
         ->orderBy('b.no_urut')
@@ -442,9 +456,6 @@ class PurchaseOrderController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataPR as $recPR) {
-                $qty= 0;
-                $qty_sisa= 0;
-                $rp_sisa= 0;
                 $updatePR1= PR1::from("t_pr1 as a")
                 ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
@@ -452,6 +463,7 @@ class PurchaseOrderController extends Controller
                 ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
                 ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
                 ->where("a.doc_key",$recPR->doc_key)
+                ->where("d.doc_key",$doc_key)
                 ->get();
                 foreach($updatePR1 as $updPR1) {
                     //Update PR2
@@ -459,18 +471,18 @@ class PurchaseOrderController extends Controller
                     if ($pr2) {
                         $pr2->qty_sisa = $pr2->qty_sisa + $updPR1->qty;
                         $pr2->save();
-                        $qty = $qty + $pr2->qty;
-                        $qty_sisa = $qty_sisa + $pr2->qty_sisa;
                     }
                     //Update PR3
                     $pr3 = PR3::where('dtl3_key',$updPR1->dtl3_key)->first();
                     if ($pr3) {
                         $pr3->rp_sisa = $pr3->rp_sisa + $updPR1->rp_bayar;
                         $pr3->save();
-                        $rp_sisa = $rp_sisa + $pr3->rp_sisa;
                     }
                 }
                 //Update PR1
+                $qty= PR2::where("doc_key",$recPR->doc_key)->sum('qty');
+                $qty_sisa= PR2::where("doc_key",$recPR->doc_key)->sum('qty_sisa');
+                $rp_sisa= PR3::where("doc_key",$recPR->doc_key)->sum('rp_sisa');
                 $pr1= PR1::where("doc_key",$recPR->doc_key)->first();
                 if ($pr1) {
                     if ($qty_sisa == 0 && $rp_sisa == 0) {
@@ -500,9 +512,6 @@ class PurchaseOrderController extends Controller
             ->groupBy("a.doc_key")
             ->get();
             foreach($dataPR as $recPR) {
-                $qty= 0;
-                $qty_sisa= 0;
-                $rp_sisa= 0;
                 $updatePR1= PR1::from("t_pr1 as a")
                 ->leftJoin("t_pr2 as b","a.doc_key","=","b.doc_key")
                 ->leftJoin("t_pr3 as c","a.doc_key","=","c.doc_key")
@@ -510,6 +519,7 @@ class PurchaseOrderController extends Controller
                 ->leftJoin("t_po3 as e","c.dtl3_key","=","e.base_ref")
                 ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
                 ->where("a.doc_key",$recPR->doc_key)
+                ->where("d.doc_key",$doc_key)
                 ->get();
                 foreach($updatePR1 as $updPR1) {
                     //Update PR2
@@ -517,18 +527,18 @@ class PurchaseOrderController extends Controller
                     if ($pr2) {
                         $pr2->qty_sisa = $pr2->qty_sisa - $updPR1->qty;
                         $pr2->save();
-                        $qty = $qty + $pr2->qty;
-                        $qty_sisa = $qty_sisa + $pr2->qty_sisa;
                     }
                     //Update PR3
                     $pr3 = PR3::where('dtl3_key',$updPR1->dtl3_key)->first();
                     if ($pr3) {
                         $pr3->rp_sisa = $pr3->rp_sisa - $updPR1->rp_bayar;
                         $pr3->save();
-                        $rp_sisa = $rp_sisa + $pr3->rp_sisa;
                     }
                 }
                 //Update PR1
+                $qty= PR2::where("doc_key",$recPR->doc_key)->sum('qty');
+                $qty_sisa= PR2::where("doc_key",$recPR->doc_key)->sum('qty_sisa');
+                $rp_sisa= PR3::where("doc_key",$recPR->doc_key)->sum('rp_sisa');
                 $pr1= PR1::where("doc_key",$recPR->doc_key)->first();
                 if ($pr1) {
                     if ($qty_sisa == 0 && $rp_sisa == 0) {

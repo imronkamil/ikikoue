@@ -8,13 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Models\Accounting\AccountDtl;
-use App\Models\Sales\SO1;
-use App\Models\Sales\SO2;
-use App\Models\Sales\SO2Fifo;
-use App\Models\Sales\SO3;
-use App\Models\Sales\SO4;
-use App\Models\Sales\SO5;
-use App\Models\Sales\SO6;
+use App\Models\Sales\Jual;
+use App\Models\Sales\JualBahan;
+use App\Models\Sales\JualBayar;
 use App\Models\Finance\ARDP1;
 use App\Models\Master\Lokasi;
 use App\Models\Master\Bahan;
@@ -34,7 +30,7 @@ use App\Models\Stok\StokFifoDtl;
 use App\Http\Controllers\Tools\DocNoController;
 use App\Http\Controllers\Tools\UtilityController;
 
-class SalesOrderController extends Controller
+class JualPOSController extends Controller
 {
     public function show1(Request $request) {
         $tgl1 = $request->tgl1;
@@ -43,13 +39,13 @@ class SalesOrderController extends Controller
         $sorting = ($request->descending=="true") ? "desc" :"asc";
         $sortBy = $request->sortBy;
         //var_dump(date($tgl1));
-        $query1= DB::table('t_so5 as a')
+        $query1= DB::table('t_jual_bayar as a')
         ->selectRaw("a.doc_key, string_agg(a.kd_bayar,', ') AS kd_bayar")
         ->groupBy('a.doc_key');
         //->get();
 
-        $subQ2= DB::table('t_so5 as a')
-        ->leftJoin('t_bank_terima2 as b','a.dtl5_key','=','b.base_ref')
+        $subQ2= DB::table('t_jual_bayar as a')
+        ->leftJoin('t_bank_terima2 as b','a.dtl3_key','=','b.base_ref')
         ->selectRaw("a.doc_key, b.doc_key AS doc_key_bi")
         ->groupBy('a.doc_key')
         ->groupBy('b.doc_key');
@@ -60,31 +56,11 @@ class SalesOrderController extends Controller
         ->groupBy('b.doc_key');
         //->get();
 
-        $data['t_so1']= SO1::from('t_so1 as a')
+        $data['t_jual']= Jual::from('t_jual as a')
         ->leftJoinSub($query1,'b','a.doc_key','=','b.doc_key')
-        ->leftJoin('m_customer as c','a.kd_partner','=','c.kd_customer')
-        ->leftJoin('m_staf as d','a.kd_sales','=','d.kd_staf')
         ->leftJoin('m_lokasi as e','a.kd_lokasi','=','e.kd_lokasi')
-        ->leftJoin('m_customer_grup as f','c.kd_customer_grup','=','f.kd_customer_grup')
         ->leftJoinSub($query2,'g','a.doc_key','=','g.doc_key')
-        ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.tgl_order, a.tgl_kirim, a.jam_kirim, a.tgl_sampai, a.jam_sampai,
-            a.jam_konsumsi, a.tgl_finish, a.jam_finish, a.kd_lokasi, a.no_referensi, a.lama_bayar, a.tgl_bayar,
-            a.kd_partner, a.kd_kontak,
-            a.rp_total_awal, a.persen_diskon, a.rp_diskon, a.persen_pajak, a.rp_pajak, a.persen_biaya, a.rp_biaya,
-            a.rp_rounding, a.rp_total, a.rp_dp, a.rp_bayar, a.rp_sisa,
-            a.kd_sales, a.catatan, a.catatan_jurnal, a.enum_tipe_so,
-            a.fl_rounding, a.fl_tutup, a.fl_batal, a.fl_trds, a.fl_kirim,
-            a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi,
-            a.batal_tgl, a.batal_userid, a.batal_lokasi,
-            a.nm_partner, a.alamat_inv, a.telp_inv, a.nm_kontak, a.no_account,
-            a.propinsi_inv, a.kabupaten_inv, a.kecamatan_inv, a.kelurahan_inv, a.fl_ocp,
-            a.nm_kontak_pengirim, a.telp_pengirim, a.enum_delivery, a.no_urut_delivery, a.kd_delivery,
-            a.jam_siap, a.catatan_delivery, a.jam_berangkat, a.detail_text,
-            a.no_doc_urut, a.catatan_kwitansi, a.kd_delivery2, a.fl_include_pajak,
-            a.tgl_proses, a.fl_pass, a.kd_lokasi_refer, a.doc_key_jurnal,
-            a.persen_pph23, a.rp_pph23,
-            b.kd_bayar, c.nm_customer, c.alamat, c.telp, d.nm_staf AS nm_sales, e.nm_lokasi,
-            f.kd_customer_grup, f.nm_customer_grup, g.no_doc_bi")
+        ->selectRaw("a.a.*, e.nm_lokasi, g.no_doc_bi")
         ->where("a.tgl_doc",">=",$tgl1)
         ->where("a.tgl_doc","<=",$tgl2)
         ->orderBy('tgl_doc','desc')
@@ -94,7 +70,7 @@ class SalesOrderController extends Controller
     }
 
     public function show2() {
-        $data['t_so1']= SO1::from('t_so1 as a')
+        $data['t_jual']= Jual::from('t_jual as a')
         ->selectRaw("a.*")
         //->where('doc_key')
         ->get();
@@ -103,113 +79,35 @@ class SalesOrderController extends Controller
 
     public function get(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_so1']= SO1::from('t_so1 as a')
+        $data['t_jual']= Jual::from('t_jual as a')
         ->selectRaw("a.*")
         ->where("a.doc_key",$doc_key)
         ->first();
         return response()->success('Success',$data);
     }
 
-    public function getHargaJual(Request $request) {
-        $kd_customer=isset($request->kd_customer) ? $request->kd_customer : 0;
-        $kd_bahan=isset($request->kd_bahan) ? $request->kd_bahan : 0;
-        $subQ1= DB::table('m_harga_jual as a')
-        ->whereIn('kd_harga', function($query) use ($kd_customer) {
-            $query->select('b.kd_harga')
-            ->from('m_customer as b')
-            ->where('b.kd_customer', $kd_customer);
-        })
-        ->selectRaw("a.kd_bahan, a.kd_harga, a.rp_harga");
-        $data['m_harga_jual']= Bahan::from('m_bahan as a')
-        ->leftJoin('m_bahan_satuan as b',function ($join) {
-            $join->on('a.kd_bahan','=','b.kd_bahan')
-                 ->on('a.satuan','=','b.satuan');
-        })
-        ->leftJoinSub($subQ1,'c','a.kd_bahan','=','c.kd_bahan')
-        ->leftJoin('m_customer_bahan as d',function ($join) use ($kd_customer) {
-            $join->on('a.kd_bahan','=','d.kd_bahan')
-                 ->where('d.kd_customer','=',$kd_customer);
-        })
-        ->selectRaw("c.kd_harga, b.rp_harga_jual, c.rp_harga AS rp_harga_khusus, d.rp_harga AS rp_harga_ocp, a.satuan")
-        ->where("a.kd_bahan",$kd_bahan)
-        ->get();
-        return response()->success('Success',$data);
-    }
-
-    public function getCustomer(Request $request) {
-        $filter=Str::lower(isset($request->filter) ? $request->filter : '');
-        $data['m_customer']= Customer::from('m_customer as a')
-        ->leftJoin('m_customer_alamat as b','a.kd_customer','=','b.kd_customer')
-        ->selectRaw("a.kd_customer, a.nm_customer, a.kd_customer_grup,
-            b.kd_alamat, b.nm_alamat, b.alamat, b.contact, b.telp, b.fax,
-            b.propinsi, b.kota, b.kecamatan, b.kelurahan, a.fl_ocp, a.nm_kontak_pengirim, a.telp AS telp_pengirim")
-        ->where("a.fl_aktif","true")
-        ->where(function ($query) use ($filter) {
-            $query->where(DB::raw('lower(a.kd_customer)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(a.nm_customer)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(b.alamat)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(b.contact)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(b.telp)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(b.fax)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(a.telp)'), 'like', '%' . $filter . '%')
-                  ->orWhere(DB::raw('lower(a.nm_kontak_pengirim)'), 'like', '%' . $filter . '%')
-                  ->orWhereRaw('? = ?', [$filter, '']);
-        })->get();
-        return response()->success('Success',$data);
-    }
-
     public function getBatal(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_so1']= SO1::from('t_so1 as a')
+        $data['t_jual']= Jual::from('t_jual as a')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
         ->where("a.doc_key",$doc_key)
         ->first();
-        $response['value']= ($data['t_so1']) ? $data['t_so1']->fl_batal : 'false';
+        $response['value']= ($data['t_jual']) ? $data['t_jual']->fl_batal : 'false';
         return response()->success('Success',$response);
     }
 
     public function getLinkData(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $data['t_so1']= SO1::from('t_so1 as a')
-        ->join('t_so5 as b','a.doc_key','=','b.doc_key')
-        ->join('t_bank_terima2 as c','b.dtl5_key','=','c.base_ref')
+        $data['t_jual']= Jual::from('t_jual as a')
+        ->join('t_jual_bayar as b','a.doc_key','=','b.doc_key')
+        ->join('t_bank_terima2 as c','b.dtl3_key','=','c.base_ref')
         ->join('t_bank_terima1 as d','c.doc_key','=','d.doc_key')
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.fl_batal")
         ->where("a.doc_key",$doc_key)
         ->where("d.fl_batal","false")
         ->get();
-        $response['value']= (count($data['t_so1'])>0) ? 'true' : 'false';
+        $response['value']= (count($data['t_jual'])>0) ? 'true' : 'false';
         return response()->success('Success',$response);
-    }
-
-    public function getSODPRef(Request $request) {
-        $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
-        $kd_partner=isset($request->kd_partner) ? $request->kd_partner : '';
-        $jenis=isset($request->jenis) ? $request->jenis : 0;
-        $base_type=41; //AR Deposit
-
-        //SODP
-        $data['t_so6']= SO6::from('t_so6 as a')
-        ->rightJoin('t_ardp1 as b', function($join) use ($doc_key) {
-            $join->on('a.base_ref','=','b.doc_key');
-            $join->where('a.doc_key','=',$doc_key);
-        })
-        ->leftJoin('m_customer as c','b.kd_partner','=','c.kd_customer')
-        ->selectRaw("a.dtl6_key, a.doc_key, ".$base_type." as base_type, b.doc_key as base_ref,
-            COALESCE(a.rp_jumlah,0) AS rp_jumlah, b.no_doc AS base_ref2,
-            b.no_doc AS no_doc_ardp, b.tgl_doc AS tgl_doc_ardp, b.kd_partner AS kd_partner_ardp,
-            c.nm_customer AS nm_partner_ardp, b.rp_total AS rp_total_ardp, COALESCE(a.rp_jumlah,0)+COALESCE(b.rp_sisa,0) AS rp_sisa_ardp")
-        ->where("b.kd_partner",$kd_partner)
-        ->where(DB::raw('b.rp_sisa + COALESCE(a.rp_jumlah,0)'),'>',0)
-        ->orderBy("b.tgl_doc","desc")
-        ->orderBy("b.no_doc","desc")
-        ->get();
-
-        if ($jenis==1) {
-            return response()->success('Success',$data);
-        } else {
-            return $data['t_so6'];
-        }
     }
 
     public function getAllRef(Request $request) {
@@ -236,53 +134,25 @@ class SalesOrderController extends Controller
         })
         ->get();
 
-        //SO1
-        $data['t_so1']= SO1::from('t_so1 as a')
-        ->leftJoin('m_customer as b','a.kd_partner','=','b.kd_customer')
-        ->selectRaw("a.*, b.kd_customer_grup")
+        //Jual
+        $data['t_jual']= Jual::from('t_jual as a')
+        ->selectRaw("a.*")
         ->where("a.doc_key",$doc_key)
         ->first();
 
-        //SO2
-        $data['t_so2']= SO2::from('t_so2 as a')
-        ->selectRaw("a.*")
-        ->where("a.doc_key",$doc_key)
-        ->where(DB::raw("COALESCE(a.parent_dtl2_key,0)"),0)
-        ->orderBy("a.no_urut")
-        ->get();
-
-        //SO2Detail
-        $data['t_so2_detail']= SO2::from('t_so2 as a')
-        ->leftJoin('t_so2 as b','b.dtl2_key','=','a.parent_dtl2_key')
-        ->selectRaw("a.*, b.no_urut as no_urut_parent")
-        ->where("a.doc_key",$doc_key)
-        ->whereNotNull("a.parent_dtl2_key")
-        ->orderBy("b.no_urut")
-        ->orderBy("a.no_urut")
-        ->get();
-
-        //SO3
-        $data['t_so3']= SO3::from('t_so3 as a')
+        //JualBahan
+        $data['t_jual_bahan']= JualBahan::from('t_jual_bahan as a')
         ->selectRaw("a.*")
         ->where("a.doc_key",$doc_key)
         ->orderBy("a.no_urut")
         ->get();
 
-        //SO4
-        $data['t_so4']= SO4::from('t_so4 as a')
-        ->selectRaw("a.*")
-        ->where("a.doc_key",$doc_key)
-        ->get();
-
-        //SO5
-        $data['t_so5']= SO5::from('t_so5 as a')
+        //JualBayar
+        $data['t_jual_bayar']= JualBayar::from('t_jual_bayar as a')
         ->selectRaw("a.*")
         ->where("a.doc_key",$doc_key)
         ->orderBy("a.no_urut")
         ->get();
-
-        //SO6
-        $data['t_so6']= SalesOrderController::getSODPRef($request);
 
         //Master DocNo
         $data['i_docno']= DocNo::from('i_docno as a')
@@ -377,12 +247,10 @@ class SalesOrderController extends Controller
     public function destroy(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         //SalesOrderController::updateStok($doc_key, FALSE);
-        SO5::where('doc_key',$doc_key)->delete();
-        SO4::where('doc_key',$doc_key)->delete();
-        SO3::where('doc_key',$doc_key)->delete();
-        SO2Fifo::where('doc_key',$doc_key)->delete();
-        SO2::where('doc_key',$doc_key)->delete();
-        SO1::where('doc_key',$doc_key)->delete();
+        JualBayar::where('doc_key',$doc_key)->delete();
+        JualBahanFifo::where('doc_key',$doc_key)->delete();
+        JualBahan::where('doc_key',$doc_key)->delete();
+        Jual::where('doc_key',$doc_key)->delete();
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }
@@ -390,20 +258,20 @@ class SalesOrderController extends Controller
     public function setBatal(Request $request) {
         $doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         $catatan=isset($request->catatan) ? $request->catatan : '';
-        $so1= SO1::where('doc_key',$doc_key)->first();
-        if ($so1) {
-            if ($so1->fl_batal == 'true') {
+        $jual= Jual::where('doc_key',$doc_key)->first();
+        if ($jual) {
+            if ($jual->fl_batal == 'true') {
                 $response['message'] = 'Data sudah dibatalkan';
                 return response()->success('Success',$response);
             }
             //SalesOrderController::updateStok($doc_key, FALSE);
             //Update gr1
-            $so1->catatan = $catatan . "\n" . $so1->catatan;
-            $so1->fl_batal = 'true';
-            $so1->batal_tgl = date('Y-m-d H:i:s');
-            $so1->batal_userid = $request->userid;
-            $so1->batal_lokasi = $request->lokasi;
-            $so1->save();
+            $jual->catatan = $catatan . "\n" . $jual->catatan;
+            $jual->fl_batal = 'true';
+            $jual->batal_tgl = date('Y-m-d H:i:s');
+            $jual->batal_userid = $request->userid;
+            $jual->batal_lokasi = $request->lokasi;
+            $jual->save();
         }
         $response['message'] = 'Batal data berhasil';
         return response()->success('Success',$response);
@@ -414,7 +282,7 @@ class SalesOrderController extends Controller
             //ARDeposit1
             $dataARDP1= ARDP1::from("t_ardp1 as a")
             ->leftJoin("t_so6 as b","a.doc_key","=","b.base_ref")
-            ->leftJoin("t_so1 as c","b.doc_key","=","c.doc_key")
+            ->leftJoin("t_jual as c","b.doc_key","=","c.doc_key")
             ->selectRaw("a.doc_key, b.dtl6_key, b.rp_jumlah")
             ->where("c.doc_key",$doc_key)
             ->where("b.base_type",41) //AR Deposit
@@ -436,7 +304,7 @@ class SalesOrderController extends Controller
             //ARDeposit1
             $dataARDP1= ARDP1::from("t_ardp1 as a")
             ->leftJoin("t_so6 as b","a.doc_key","=","b.base_ref")
-            ->leftJoin("t_so1 as c","b.doc_key","=","c.doc_key")
+            ->leftJoin("t_jual as c","b.doc_key","=","c.doc_key")
             ->selectRaw("a.doc_key, b.dtl6_key, b.rp_jumlah")
             ->where("c.doc_key",$doc_key)
             ->where("b.base_type",41) //AR Deposit
@@ -460,11 +328,11 @@ class SalesOrderController extends Controller
     }
 
     public static function updateStok($doc_key = 0, $insert = FALSE) {
-        $docTrans=31; //Sales Order
+        $docTrans=45; //POS Sales
         $dataStokFifoAll= [];
         $dataStokFifoAllNon= [];
         if ($insert == FALSE) {
-            $dataTrans= SO1::from("t_so1 as a")
+            $dataTrans= Jual::from("t_jual as a")
             ->leftJoin("t_so2_fifo as b","a.doc_key","=","b.doc_key")
             ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
                 b.dtl2_fifo_key, b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.stok_fifo_key")
@@ -495,10 +363,10 @@ class SalesOrderController extends Controller
         } elseif ($insert == TRUE) {
             $qty= 0;
             $qtyStok=0;
-            //Kosongkan SO2Fifo
-            SO2Fifo::where("doc_key",$doc_key)->delete();
-            //Append SO2Fifo
-            $dataTrans= SO1::from("t_so1 as a")
+            //Kosongkan JualBahanFifo
+            JualBahanFifo::where("doc_key",$doc_key)->delete();
+            //Append JualBahanFifo
+            $dataTrans= Jual::from("t_jual as a")
             ->join("t_so2 as b","a.doc_key","=","b.doc_key")
             ->join("m_bahan as c","b.kd_bahan","=","c.kd_bahan")
             ->join("m_bahan_satuan as d", function ($join) {
@@ -533,22 +401,22 @@ class SalesOrderController extends Controller
                             $qtyStok= $recStokFifo->qty_on_hand - $recStokFifo->qty_used;
                             $qty= $qty - $qtyStok;
                         }
-                        //SO2Fifo
-                        $dataSO2Fifo= SO2Fifo::where("doc_key",$recTrans->doc_key)
+                        //JualBahanFifo
+                        $dataJualBahanFifo= JualBahanFifo::where("doc_key",$recTrans->doc_key)
                             ->where("dtl2_key",$recTrans->dtl2_key)
                             ->where("stok_fifo_key",$recStokFifo->stok_fifo_key)
                             ->first();
-                        if (!$dataSO2Fifo) {
-                            $dataSO2Fifo= new SO2Fifo();
-                            $dataSO2Fifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
+                        if (!$dataJualBahanFifo) {
+                            $dataJualBahanFifo= new JualBahanFifo();
+                            $dataJualBahanFifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
                         }
-                        $dataSO2Fifo->doc_key = $recTrans->doc_key;
-                        $dataSO2Fifo->dtl2_key = $recTrans->dtl2_key;
-                        $dataSO2Fifo->kd_bahan = $recTrans->kd_bahan;
-                        $dataSO2Fifo->satuan = $recTrans->satuan_dasar2;
-                        $dataSO2Fifo->qty = $qtyStok;
-                        $dataSO2Fifo->stok_fifo_key = $recStokFifo->stok_fifo_key;
-                        $dataSO2Fifo->save();
+                        $dataJualBahanFifo->doc_key = $recTrans->doc_key;
+                        $dataJualBahanFifo->dtl2_key = $recTrans->dtl2_key;
+                        $dataJualBahanFifo->kd_bahan = $recTrans->kd_bahan;
+                        $dataJualBahanFifo->satuan = $recTrans->satuan_dasar2;
+                        $dataJualBahanFifo->qty = $qtyStok;
+                        $dataJualBahanFifo->stok_fifo_key = $recStokFifo->stok_fifo_key;
+                        $dataJualBahanFifo->save();
 
                         //StokFIFO Detail
                         $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
@@ -613,22 +481,22 @@ class SalesOrderController extends Controller
                     $dataStokFifoNew->base_doc_key = $recTrans->doc_key;
                     $dataStokFifoNew->base_dtl2_key = $recTrans->dtl2_key;
                     $dataStokFifoNew->save();
-                    //SO2Fifo
-                    $dataSO2Fifo= SO2Fifo::where("doc_key",$recTrans->doc_key)
+                    //JualBahanFifo
+                    $dataJualBahanFifo= JualBahanFifo::where("doc_key",$recTrans->doc_key)
                         ->where("dtl2_key",$recTrans->dtl2_key)
                         ->where("stok_fifo_key",$dataStokFifoNew->stok_fifo_key)
                         ->first();
-                    if (!$dataSO2Fifo) {
-                        $dataSO2Fifo= new SO2Fifo();
-                        $dataSO2Fifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
+                    if (!$dataJualBahanFifo) {
+                        $dataJualBahanFifo= new JualBahanFifo();
+                        $dataJualBahanFifo->dtl2_fifo_key = DocNoController::getDocKey('doc_key');
                     }
-                    $dataSO2Fifo->doc_key = $recTrans->doc_key;
-                    $dataSO2Fifo->dtl2_key = $recTrans->dtl2_key;
-                    $dataSO2Fifo->kd_bahan = $recTrans->kd_bahan;
-                    $dataSO2Fifo->satuan = $recTrans->satuan_dasar2;
-                    $dataSO2Fifo->qty = $qtyStok;
-                    $dataSO2Fifo->stok_fifo_key = $dataStokFifoNew->stok_fifo_key;
-                    $dataSO2Fifo->save();
+                    $dataJualBahanFifo->doc_key = $recTrans->doc_key;
+                    $dataJualBahanFifo->dtl2_key = $recTrans->dtl2_key;
+                    $dataJualBahanFifo->kd_bahan = $recTrans->kd_bahan;
+                    $dataJualBahanFifo->satuan = $recTrans->satuan_dasar2;
+                    $dataJualBahanFifo->qty = $qtyStok;
+                    $dataJualBahanFifo->stok_fifo_key = $dataStokFifoNew->stok_fifo_key;
+                    $dataJualBahanFifo->save();
 
                     //StokFIFO Detail
                     $dataStokFifoDtl= StokFifoDtl::where("kd_lokasi",$recTrans->kd_lokasi)
@@ -665,7 +533,7 @@ class SalesOrderController extends Controller
     public function generateJurnal($doc_key = 0, $user_id = '') {
         //$doc_key=isset($request->doc_key) ? $request->doc_key : 0;
         //$user_id=isset($request->user_id) ? $request->user_id : '';
-        $docTrans=31; //Sales Order
+        $docTrans=45; //POS Sales
 
         //Hapus Jurnal Lama
         AccountDtl::where('base_doc_key',$doc_key)->delete();
@@ -680,7 +548,7 @@ class SalesOrderController extends Controller
         ->selectRaw("a.doc_key, SUM(COALESCE(a.rp_jumlah,0)) AS rp_jumlah")
         ->where("a.doc_key",$doc_key)
         ->groupBy("a.doc_key");
-        $jurnal= SO1::from('t_so1 as a')
+        $jurnal= Jual::from('t_jual as a')
         ->leftJoinSub($subJ1,'b', function ($join) {
             $join->on('a.doc_key','=','b.doc_key');
         })
@@ -940,7 +808,7 @@ class SalesOrderController extends Controller
         $tgl_awal= $request->input('tgl_awal','');
         $tgl_kini= date('Y-m-d');
         $user_id= $request->input('user_id','');
-        $salesOrders= SO1::from('t_so1 as a')
+        $salesOrders= Jual::from('t_jual as a')
             ->leftJoin('m_account_dtl as b','a.doc_key','=','b.base_doc_key')
             ->whereRaw("a.tgl_doc >= '".$tgl_awal."' AND a.tgl_doc <= '".$tgl_kini."'")
             ->whereRaw("(COALESCE(a.fl_batal,'false') = 'false')")
@@ -977,12 +845,12 @@ class SalesOrderController extends Controller
         $data = $request->json()->all();
         $where= $data['where'];
         $doc_key=isset($where['doc_key']) ? $where['doc_key'] : 0;
-        $dataTrans1= $data['t_so1'];
+        $dataTrans1= $data['t_jual'];
         $dataTrans2= $data['t_so2'];
         $dataTrans2Detail= $data['t_so2_detail'];
         $dataTrans3= $data['t_so3'];
         //$dataTrans4= $data['t_so4'];
-        $dataTrans5= $data['t_so5'];
+        $dataTrans5= $data['t_jual_bayar'];
         $dataTrans6= $data['t_so6'];
 
         $dataTrans6= array_filter($dataTrans6, function($item) {
@@ -1001,114 +869,114 @@ class SalesOrderController extends Controller
                 return response()->error('',501,$validator->errors()->first());
             }
 
-            $so1= SO1::where('doc_key',$doc_key)->first();
+            $jual= Jual::where('doc_key',$doc_key)->first();
             //Jika update, kembalikan stok terlebih dahulu
-            if ($so1) {
+            if ($jual) {
                 SalesOrderController::updateLinkData($doc_key, FALSE);
                 if (UtilityController::getAutoStok() == 'true') {
-                    if ($so1->tgl_kirim <= date('Y-m-d')) {
+                    if ($jual->tgl_kirim <= date('Y-m-d')) {
                         SalesOrderController::updateStok($doc_key, FALSE);
                     }
                 }
             } else {
-                $so1= new SO1();
-                $so1->doc_key = DocNoController::getDocKey('doc_key');
+                $jual= new Jual();
+                $jual->doc_key = DocNoController::getDocKey('doc_key');
             }
-            $so1->no_doc             = $dataTrans1['no_doc'];
-            $so1->tgl_doc            = $dataTrans1['tgl_doc'];
-            $so1->tgl_order          = $dataTrans1['tgl_order'];
-            $so1->tgl_kirim          = $dataTrans1['tgl_kirim'];
-            $so1->jam_kirim          = $dataTrans1['jam_kirim'];
-            $so1->tgl_sampai         = $dataTrans1['tgl_sampai'];
-            $so1->jam_sampai         = $dataTrans1['jam_sampai'];
-            $so1->jam_konsumsi       = $dataTrans1['jam_konsumsi'];
-            $so1->tgl_finish         = $dataTrans1['tgl_finish'];
-            $so1->jam_finish         = $dataTrans1['jam_finish'];
-            $so1->kd_lokasi          = $dataTrans1['kd_lokasi'];
-            $so1->no_referensi       = $dataTrans1['no_referensi'];
-            $so1->lama_bayar         = $dataTrans1['lama_bayar'];
-            $so1->tgl_bayar          = $dataTrans1['tgl_bayar'];
-            $so1->kd_partner         = $dataTrans1['kd_partner'];
-            $so1->kd_kontak          = $dataTrans1['kd_kontak'];
-            $so1->rp_total_awal      = $dataTrans1['rp_total_awal'];
-            $so1->persen_diskon      = $dataTrans1['persen_diskon'];
-            $so1->rp_diskon          = $dataTrans1['rp_diskon'];
-            $so1->persen_pajak       = $dataTrans1['persen_pajak'];
-            $so1->rp_pajak           = $dataTrans1['rp_pajak'];
-            $so1->persen_biaya       = $dataTrans1['persen_biaya'];
-            $so1->rp_biaya           = $dataTrans1['rp_biaya'];
-            $so1->rp_rounding        = $dataTrans1['rp_rounding'];
-            $so1->rp_total           = $dataTrans1['rp_total'];
-            $so1->rp_dp              = $dataTrans1['rp_dp'];
-            $so1->rp_bayar           = $dataTrans1['rp_bayar'];
-            $so1->rp_sisa            = $dataTrans1['rp_sisa'];
-            $so1->kd_sales           = $dataTrans1['kd_sales'];
-            $so1->catatan            = $dataTrans1['catatan'];
-            $so1->catatan_jurnal     = $dataTrans1['catatan_jurnal'];
-            $so1->enum_tipe_so       = $dataTrans1['enum_tipe_so'];
-            $so1->fl_rounding        = $dataTrans1['fl_rounding'];
-            $so1->fl_tutup           = $dataTrans1['fl_tutup'];
-            $so1->fl_batal           = $dataTrans1['fl_batal'];
-            $so1->fl_trds            = $dataTrans1['fl_trds'];
-            $so1->fl_kirim           = $dataTrans1['fl_kirim'];
-            $so1->base_type          = $dataTrans1['base_type'];
-            $so1->create_tgl         = $dataTrans1['create_tgl'];
-            $so1->create_userid      = $dataTrans1['create_userid'];
-            $so1->create_lokasi      = $dataTrans1['create_lokasi'];
-            $so1->update_tgl         = $dataTrans1['update_tgl'];
-            $so1->update_userid      = $dataTrans1['update_userid'];
-            $so1->update_lokasi      = $dataTrans1['update_lokasi'];
-            $so1->batal_tgl          = $dataTrans1['batal_tgl'];
-            $so1->batal_userid       = $dataTrans1['batal_userid'];
-            $so1->batal_lokasi       = $dataTrans1['batal_lokasi'];
-            $so1->nm_partner         = $dataTrans1['nm_partner'];
-            $so1->alamat_inv         = $dataTrans1['alamat_inv'];
-            $so1->telp_inv           = $dataTrans1['telp_inv'];
-            $so1->nm_kontak          = $dataTrans1['nm_kontak'];
-            $so1->no_account         = $dataTrans1['no_account'];
-            $so1->propinsi_inv       = $dataTrans1['propinsi_inv'];
-            $so1->kabupaten_inv      = $dataTrans1['kabupaten_inv'];
-            $so1->kecamatan_inv      = $dataTrans1['kecamatan_inv'];
-            $so1->kelurahan_inv      = $dataTrans1['kelurahan_inv'];
-            $so1->fl_ocp             = $dataTrans1['fl_ocp'];
-            $so1->nm_kontak_pengirim = $dataTrans1['nm_kontak_pengirim'];
-            $so1->telp_pengirim      = $dataTrans1['telp_pengirim'];
-            $so1->enum_delivery      = $dataTrans1['enum_delivery'];
-            $so1->no_urut_delivery   = $dataTrans1['no_urut_delivery'];
-            $so1->kd_delivery        = $dataTrans1['kd_delivery'];
-            $so1->catatan_delivery   = $dataTrans1['catatan_delivery'];
-            $so1->jam_siap           = $dataTrans1['jam_siap'];
-            $so1->jam_berangkat      = $dataTrans1['jam_berangkat'];
-            $so1->detail_text        = $dataTrans1['detail_text'];
-            $so1->no_doc_urut        = $dataTrans1['no_doc_urut'];
-            $so1->catatan_kwitansi   = $dataTrans1['catatan_kwitansi'];
-            $so1->kd_delivery2       = $dataTrans1['kd_delivery2'];
-            $so1->fl_include_pajak   = $dataTrans1['fl_include_pajak'];
-            $so1->tgl_proses         = $dataTrans1['tgl_proses'];
-            $so1->fl_pass            = $dataTrans1['fl_pass'];
-            $so1->kd_lokasi_refer    = $dataTrans1['kd_lokasi_refer'];
-            $so1->doc_key_jurnal     = $dataTrans1['doc_key_jurnal'];
-            $so1->persen_pph23       = $dataTrans1['persen_pph23'];
-            $so1->rp_pph23           = $dataTrans1['rp_pph23'];
-            $so1->save();
+            $jual->no_doc             = $dataTrans1['no_doc'];
+            $jual->tgl_doc            = $dataTrans1['tgl_doc'];
+            $jual->tgl_order          = $dataTrans1['tgl_order'];
+            $jual->tgl_kirim          = $dataTrans1['tgl_kirim'];
+            $jual->jam_kirim          = $dataTrans1['jam_kirim'];
+            $jual->tgl_sampai         = $dataTrans1['tgl_sampai'];
+            $jual->jam_sampai         = $dataTrans1['jam_sampai'];
+            $jual->jam_konsumsi       = $dataTrans1['jam_konsumsi'];
+            $jual->tgl_finish         = $dataTrans1['tgl_finish'];
+            $jual->jam_finish         = $dataTrans1['jam_finish'];
+            $jual->kd_lokasi          = $dataTrans1['kd_lokasi'];
+            $jual->no_referensi       = $dataTrans1['no_referensi'];
+            $jual->lama_bayar         = $dataTrans1['lama_bayar'];
+            $jual->tgl_bayar          = $dataTrans1['tgl_bayar'];
+            $jual->kd_partner         = $dataTrans1['kd_partner'];
+            $jual->kd_kontak          = $dataTrans1['kd_kontak'];
+            $jual->rp_total_awal      = $dataTrans1['rp_total_awal'];
+            $jual->persen_diskon      = $dataTrans1['persen_diskon'];
+            $jual->rp_diskon          = $dataTrans1['rp_diskon'];
+            $jual->persen_pajak       = $dataTrans1['persen_pajak'];
+            $jual->rp_pajak           = $dataTrans1['rp_pajak'];
+            $jual->persen_biaya       = $dataTrans1['persen_biaya'];
+            $jual->rp_biaya           = $dataTrans1['rp_biaya'];
+            $jual->rp_rounding        = $dataTrans1['rp_rounding'];
+            $jual->rp_total           = $dataTrans1['rp_total'];
+            $jual->rp_dp              = $dataTrans1['rp_dp'];
+            $jual->rp_bayar           = $dataTrans1['rp_bayar'];
+            $jual->rp_sisa            = $dataTrans1['rp_sisa'];
+            $jual->kd_sales           = $dataTrans1['kd_sales'];
+            $jual->catatan            = $dataTrans1['catatan'];
+            $jual->catatan_jurnal     = $dataTrans1['catatan_jurnal'];
+            $jual->enum_tipe_so       = $dataTrans1['enum_tipe_so'];
+            $jual->fl_rounding        = $dataTrans1['fl_rounding'];
+            $jual->fl_tutup           = $dataTrans1['fl_tutup'];
+            $jual->fl_batal           = $dataTrans1['fl_batal'];
+            $jual->fl_trds            = $dataTrans1['fl_trds'];
+            $jual->fl_kirim           = $dataTrans1['fl_kirim'];
+            $jual->base_type          = $dataTrans1['base_type'];
+            $jual->create_tgl         = $dataTrans1['create_tgl'];
+            $jual->create_userid      = $dataTrans1['create_userid'];
+            $jual->create_lokasi      = $dataTrans1['create_lokasi'];
+            $jual->update_tgl         = $dataTrans1['update_tgl'];
+            $jual->update_userid      = $dataTrans1['update_userid'];
+            $jual->update_lokasi      = $dataTrans1['update_lokasi'];
+            $jual->batal_tgl          = $dataTrans1['batal_tgl'];
+            $jual->batal_userid       = $dataTrans1['batal_userid'];
+            $jual->batal_lokasi       = $dataTrans1['batal_lokasi'];
+            $jual->nm_partner         = $dataTrans1['nm_partner'];
+            $jual->alamat_inv         = $dataTrans1['alamat_inv'];
+            $jual->telp_inv           = $dataTrans1['telp_inv'];
+            $jual->nm_kontak          = $dataTrans1['nm_kontak'];
+            $jual->no_account         = $dataTrans1['no_account'];
+            $jual->propinsi_inv       = $dataTrans1['propinsi_inv'];
+            $jual->kabupaten_inv      = $dataTrans1['kabupaten_inv'];
+            $jual->kecamatan_inv      = $dataTrans1['kecamatan_inv'];
+            $jual->kelurahan_inv      = $dataTrans1['kelurahan_inv'];
+            $jual->fl_ocp             = $dataTrans1['fl_ocp'];
+            $jual->nm_kontak_pengirim = $dataTrans1['nm_kontak_pengirim'];
+            $jual->telp_pengirim      = $dataTrans1['telp_pengirim'];
+            $jual->enum_delivery      = $dataTrans1['enum_delivery'];
+            $jual->no_urut_delivery   = $dataTrans1['no_urut_delivery'];
+            $jual->kd_delivery        = $dataTrans1['kd_delivery'];
+            $jual->catatan_delivery   = $dataTrans1['catatan_delivery'];
+            $jual->jam_siap           = $dataTrans1['jam_siap'];
+            $jual->jam_berangkat      = $dataTrans1['jam_berangkat'];
+            $jual->detail_text        = $dataTrans1['detail_text'];
+            $jual->no_doc_urut        = $dataTrans1['no_doc_urut'];
+            $jual->catatan_kwitansi   = $dataTrans1['catatan_kwitansi'];
+            $jual->kd_delivery2       = $dataTrans1['kd_delivery2'];
+            $jual->fl_include_pajak   = $dataTrans1['fl_include_pajak'];
+            $jual->tgl_proses         = $dataTrans1['tgl_proses'];
+            $jual->fl_pass            = $dataTrans1['fl_pass'];
+            $jual->kd_lokasi_refer    = $dataTrans1['kd_lokasi_refer'];
+            $jual->doc_key_jurnal     = $dataTrans1['doc_key_jurnal'];
+            $jual->persen_pph23       = $dataTrans1['persen_pph23'];
+            $jual->rp_pph23           = $dataTrans1['rp_pph23'];
+            $jual->save();
 
-            //Data SO2
-            $existingIds = SO2::where('doc_key',$doc_key)
+            //Data JualBahan
+            $existingIds = JualBahan::where('doc_key',$doc_key)
                 ->where(DB::raw('COALESCE(parent_dtl2_key,0)'),0)->pluck('dtl2_key')->toArray();
             $newIds = collect($dataTrans2)
                 ->where('COALESCE(parent_dtl2_key,0)',0)->pluck('dtl2_key')->filter()->toArray();
             // Delete items that are not in request
             $toDelete = array_diff($existingIds, $newIds);
-            SO2::whereIn('dtl2_key', $toDelete)->delete();
+            JualBahan::whereIn('dtl2_key', $toDelete)->delete();
 
-            //Data SO2Detail
-            $existingIds = SO2::where('doc_key',$doc_key)->pluck('parent_dtl2_key')->toArray();
+            //Data JualBahanDetail
+            $existingIds = JualBahan::where('doc_key',$doc_key)->pluck('parent_dtl2_key')->toArray();
             $newIds = collect($dataTrans2Detail)->pluck('parent_dtl2_key')->filter()->toArray();
             // Delete items that are not in request
             $toDelete = array_diff($existingIds, $newIds);
-            SO2::whereIn('parent_dtl2_key', $toDelete)->delete();
+            JualBahan::whereIn('parent_dtl2_key', $toDelete)->delete();
 
-            //SO2::where('doc_key',$doc_key)->delete(); //Hapus data existing
+            //JualBahan::where('doc_key',$doc_key)->delete(); //Hapus data existing
             foreach($dataTrans2 as $recTrans2) {
                 $validator=Validator::make($recTrans2,[
                     //'kd_bahan'=>'bail|required',
@@ -1122,12 +990,12 @@ class SalesOrderController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
-                $so2 = SO2::where('dtl2_key',$recTrans2['dtl2_key'])->first();
+                $so2 = JualBahan::where('dtl2_key',$recTrans2['dtl2_key'])->first();
                 if (!($so2)) {
-                    $so2 = new SO2();
+                    $so2 = new JualBahan();
                     $so2->dtl2_key = DocNoController::getDocKey('doc_key');
                 }
-                $so2->doc_key        = $so1->doc_key;
+                $so2->doc_key        = $jual->doc_key;
                 $so2->no_urut        = $recTrans2['no_urut'];
                 $so2->kd_bahan       = $recTrans2['kd_bahan'];
                 $so2->satuan         = $recTrans2['satuan'];
@@ -1162,7 +1030,7 @@ class SalesOrderController extends Controller
 
                 $dataTrx2Detail = collect($dataTrans2Detail)->where('parent_nomor_id',$recTrans2['nomor_id'])->toArray();
                 if ($dataTrx2Detail) {
-                    //SO2::where('doc_key',$doc_key)->delete(); //Hapus data existing
+                    //JualBahan::where('doc_key',$doc_key)->delete(); //Hapus data existing
                     foreach($dataTrx2Detail as $recTrx2detail) {
                         $validator=Validator::make($recTrx2detail,[
                             'kd_bahan'=>'bail|required',
@@ -1176,12 +1044,12 @@ class SalesOrderController extends Controller
                             return response()->error('',501,$validator->errors()->first());
                         }
 
-                        $so2detail = SO2::where('dtl2_key',$recTrx2detail['dtl2_key'])->first();
+                        $so2detail = JualBahan::where('dtl2_key',$recTrx2detail['dtl2_key'])->first();
                         if (!($so2detail)) {
-                            $so2detail = new SO2();
+                            $so2detail = new JualBahan();
                             $so2detail->dtl2_key = DocNoController::getDocKey('doc_key');
                         }
-                        $so2detail->doc_key        = $so1->doc_key;
+                        $so2detail->doc_key        = $jual->doc_key;
                         $so2detail->no_urut        = $recTrx2detail['no_urut'];
                         $so2detail->kd_bahan       = $recTrx2detail['kd_bahan'];
                         $so2detail->satuan         = $recTrx2detail['satuan'];
@@ -1241,7 +1109,7 @@ class SalesOrderController extends Controller
                     $so3 = new SO3();
                     $so3->dtl3_key = DocNoController::getDocKey('doc_key');
                 }
-                $so3->doc_key        = $so1->doc_key;
+                $so3->doc_key        = $jual->doc_key;
                 $so3->no_urut        = $recTrans3['no_urut'];
                 $so3->no_account     = $recTrans3['no_account'];
                 $so3->nm_account     = $recTrans3['nm_account'];
@@ -1253,14 +1121,14 @@ class SalesOrderController extends Controller
                 $so3->save();
             }
 
-            //Data SO5
-            $existingIds = SO5::where('doc_key',$doc_key)->pluck('dtl5_key')->toArray();
-            $newIds = collect($dataTrans5)->pluck('dtl5_key')->filter()->toArray();
+            //Data JualBayar
+            $existingIds = JualBayar::where('doc_key',$doc_key)->pluck('dtl3_key')->toArray();
+            $newIds = collect($dataTrans5)->pluck('dtl3_key')->filter()->toArray();
             // Delete items that are not in request
             $toDelete = array_diff($existingIds, $newIds);
-            SO5::whereIn('dtl5_key', $toDelete)->delete();
+            JualBayar::whereIn('dtl3_key', $toDelete)->delete();
 
-            //SO5::where('doc_key',$doc_key)->delete(); //Hapus data existing
+            //JualBayar::where('doc_key',$doc_key)->delete(); //Hapus data existing
             foreach($dataTrans5 as $recTrans5) {
                 $validator=Validator::make($recTrans5,[
                     'kd_bayar'=>'bail|required',
@@ -1272,12 +1140,12 @@ class SalesOrderController extends Controller
                     return response()->error('',501,$validator->errors()->first());
                 }
 
-                $so5 = SO5::where('dtl5_key',$recTrans5['dtl5_key'])->first();
+                $so5 = JualBayar::where('dtl3_key',$recTrans5['dtl3_key'])->first();
                 if (!($so5)) {
-                    $so5 = new SO5();
-                    $so5->dtl5_key = DocNoController::getDocKey('doc_key');
+                    $so5 = new JualBayar();
+                    $so5->dtl3_key = DocNoController::getDocKey('doc_key');
                 }
-                $so5->doc_key        = $so1->doc_key;
+                $so5->doc_key        = $jual->doc_key;
                 $so5->no_urut        = $recTrans5['no_urut'];
                 $so5->enum_bayar     = $recTrans5['enum_bayar'];
                 $so5->kd_bayar       = $recTrans5['kd_bayar'];
@@ -1333,7 +1201,7 @@ class SalesOrderController extends Controller
                     $so6 = new SO6();
                     $so6->dtl6_key = DocNoController::getDocKey('doc_key');
                 }
-                $so6->doc_key        = $so1->doc_key;
+                $so6->doc_key        = $jual->doc_key;
                 $so6->base_type      = $recTrans6['base_type'];
                 $so6->base_ref       = $recTrans6['base_ref'];
                 $so6->rp_jumlah      = $recTrans6['rp_jumlah'];
@@ -1344,19 +1212,19 @@ class SalesOrderController extends Controller
             SalesOrderController::updateLinkData($doc_key, TRUE);
             $resp = 0;
             if (UtilityController::getAutoStok() == 'true') {
-                if ($so1->tgl_kirim <= date('Y-m-d')) {
-                    $resp= SalesOrderController::updateStok($so1->doc_key, TRUE);
+                if ($jual->tgl_kirim <= date('Y-m-d')) {
+                    $resp= SalesOrderController::updateStok($jual->doc_key, TRUE);
                 }
             }
             if (UtilityController::getAutoJurnal() == 'true') {
                 $user_id = isset($dataTrans1['update_userid']) ? $dataTrans1['update_userid'] : $dataTrans1['create_userid'];
-                SalesOrderController::generateJurnal($so1->doc_key, $user_id);
+                SalesOrderController::generateJurnal($jual->doc_key, $user_id);
             }
 
             DB::commit();
             //$response['auto'] = UtilityController::getAutoStok();
             //$response['tgl_now'] = date('Y-m-d');
-            //$response['tgl_kirim'] = $so1->tgl_kirim;
+            //$response['tgl_kirim'] = $jual->tgl_kirim;
             //$response['stok'] = $resp;
             $response['message'] = 'Simpan data berhasil';
             return response()->success('Success',$response);

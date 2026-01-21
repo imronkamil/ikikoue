@@ -158,10 +158,12 @@ class GoodsReceiptController extends Controller
         })
         ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.tgl_datang, a.kd_lokasi, a.kd_partner, a.nm_partner,
             a.rp_total, a.catatan, COALESCE(a.fl_tutup,a.fl_batal,FALSE) AS fl_cek")
-        ->when($kd_partner != '0', function ($query) use ($kd_partner) {
+        ->when($kd_partner !== '0', function ($query) use ($kd_partner) {
             $query->where('a.kd_partner', $kd_partner);
         })
-        ->where('a.kd_lokasi',$kd_lokasi)
+        ->when($kd_lokasi !== '0', function ($query) use ($kd_lokasi) {
+            $query->where('a.kd_lokasi', $kd_lokasi);
+        })
         ->where(DB::raw('COALESCE(a.fl_batal,false)'),false)
         ->where(function ($query1) use ($doc_key) {
             $query1->where(DB::raw('COALESCE(a.fl_tutup,false)'),false)
@@ -394,106 +396,116 @@ class GoodsReceiptController extends Controller
 
     public static function updateLinkData($doc_key = 0, $insert = FALSE) {
         if ($insert == FALSE) {
-            $po_doc_key = 0;
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
             //PO1
             $dataPO1= PO1::from("t_po1 as a")
             ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
             foreach($dataPO1 as $recPO1) {
-                $po_doc_key = $recPO1->doc_key;
-                //Update PO2
-                $po2 = PO2::where('dtl2_key',$recPO1->dtl2_key)->first();
-                if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa + $recPO1->qty;
-                    $po2->save();
-                    $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                $updatePO1= PO1::from("t_po1 as a")
+                ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPO1->doc_key)
+                ->where("d.doc_key",$doc_key)
+                ->get();
+                foreach($updatePO1 as $updPO1) {
+                    //Update PO2
+                    $po2 = PO2::where('dtl2_key',$updPO1->dtl2_key)->first();
+                    if ($po2) {
+                        $po2->qty_sisa = $po2->qty_sisa + $updPO1->qty;
+                        $po2->save();
+                    }
+                    //Update PO3
+                    $po3 = PO3::where('dtl3_key',$updPO1->dtl3_key)->first();
+                    if ($po3) {
+                        $po3->rp_sisa = $po3->rp_sisa + $updPO1->rp_bayar;
+                        $po3->save();
+                    }
                 }
-                //Update PO3
-                $po3 = PO3::where('dtl3_key',$recPO1->dtl3_key)->first();
-                if ($po3) {
-                    $po3->rp_sisa = $po3->rp_sisa + $recPO1->rp_bayar;
-                    $po3->save();
-                    $rp_sisa = $rp_sisa + $po3->rp_sisa;
+                //Update PO1
+                $qty= PO2::where('doc_key',$updPO1->doc_key)->sum('qty');
+                $qty_sisa= PO2::where('doc_key',$updPO1->doc_key)->sum('qty_sisa');
+                $rp_sisa= PO3::where('doc_key',$updPO1->doc_key)->sum('rp_sisa');
+                $po1 = PO1::where("doc_key",$updPO1->doc_key)->first();
+                if ($po1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $po1->fl_tutup= TRUE;
+                    } else {
+                        $po1->fl_tutup= FALSE;
+                    };
+                    if ($qty_sisa == 0) {
+                        $po1->enum_tipe_po = 1; //Complete
+                    } elseif ($qty_sisa == $qty) {
+                        $po1->enum_tipe_po = 0; //Aktif
+                    } else {
+                        $po1->enum_tipe_po = 2; //Sebagian
+                    }
+                    $po1->save();
                 }
-            }
-
-            //Update PO1
-            $updPO1= PO1::where("doc_key",$po_doc_key)->first();
-            if ($updPO1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPO1->fl_tutup= TRUE;
-                } else {
-                    $updPO1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPO1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPO1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPO1->enum_tipe_po = 2; //Sebagian
-                }
-                $updPO1->save();
             }
         } elseif ($insert == TRUE) {
-            $po_doc_key = 0;
-            $qty= 0;
-            $qty_sisa= 0;
-            $rp_sisa= 0;
             //PO1
             $dataPO1= PO1::from("t_po1 as a")
             ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
             ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
             ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
             ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
-            ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+            ->selectRaw("a.doc_key")
             ->where("d.doc_key",$doc_key)
-            //->groupBy("a.doc_key")
+            ->groupBy("a.doc_key")
             ->get();
             foreach($dataPO1 as $recPO1) {
-                $po_doc_key = $recPO1->doc_key;
-                //Update PO2
-                $po2 = PO2::where('dtl2_key',$recPO1->dtl2_key)->first();
-                if ($po2) {
-                    $po2->qty_sisa = $po2->qty_sisa - $recPO1->qty;
-                    $po2->save();
-                    $qty = $qty + $po2->qty;
-                    $qty_sisa = $qty_sisa + $po2->qty_sisa;
+                $updatePO1= PO1::from("t_po1 as a")
+                ->leftJoin("t_po2 as b","a.doc_key","=","b.doc_key")
+                ->leftJoin("t_po3 as c","a.doc_key","=","c.doc_key")
+                ->leftJoin("t_gr2 as d","b.dtl2_key","=","d.base_ref")
+                ->leftJoin("t_gr3 as e","c.dtl3_key","=","e.base_ref")
+                ->selectRaw("a.doc_key, b.dtl2_key, c.dtl3_key, b.qty_sisa, c.rp_sisa, d.qty, e.rp_bayar")
+                ->where("a.doc_key",$recPO1->doc_key)
+                ->where("d.doc_key",$doc_key)
+                ->get();
+                foreach($updatePO1 as $updPO1) {
+                    //Update PO2
+                    $po2 = PO2::where('dtl2_key',$updPO1->dtl2_key)->first();
+                    if ($po2) {
+                        $po2->qty_sisa = $po2->qty_sisa - $updPO1->qty;
+                        $po2->save();
+                    }
+                    //Update PO3
+                    $po3 = PO3::where('dtl3_key',$updPO1->dtl3_key)->first();
+                    if ($po3) {
+                        $po3->rp_sisa = $po3->rp_sisa - $updPO1->rp_bayar;
+                        $po3->save();
+                    }
                 }
-                //Update PO3
-                $po3 = PO3::where('dtl3_key',$recPO1->dtl3_key)->first();
-                if ($po3) {
-                    $po3->rp_sisa = $po3->rp_sisa - $recPO1->rp_bayar;
-                    $po3->save();
-                    $rp_sisa = $rp_sisa + $po3->rp_sisa;
+                //Update PO1
+                $qty= PO2::where('doc_key',$updPO1->doc_key)->sum('qty');
+                $qty_sisa= PO2::where('doc_key',$updPO1->doc_key)->sum('qty_sisa');
+                $rp_sisa= PO3::where('doc_key',$updPO1->doc_key)->sum('rp_sisa');
+                $po1 = PO1::where("doc_key",$updPO1->doc_key)->first();
+                if ($po1) {
+                    if ($qty_sisa == 0 && $rp_sisa == 0) {
+                        $po1->fl_tutup= TRUE;
+                    } else {
+                        $po1->fl_tutup= FALSE;
+                    };
+                    if ($qty_sisa == 0) {
+                        $po1->enum_tipe_po = 1; //Complete
+                    } elseif ($qty_sisa == $qty) {
+                        $po1->enum_tipe_po = 0; //Aktif
+                    } else {
+                        $po1->enum_tipe_po = 2; //Sebagian
+                    }
+                    $po1->save();
                 }
-            }
-
-            //Update PO1
-            $updPO1= PO1::where("doc_key",$po_doc_key)->first();
-            if ($updPO1) {
-                if ($qty_sisa == 0 && $rp_sisa == 0) {
-                    $updPO1->fl_tutup= TRUE;
-                } else {
-                    $updPO1->fl_tutup= FALSE;
-                };
-                if ($qty_sisa == 0) {
-                    $updPO1->enum_tipe_po = 1; //Complete
-                } elseif ($qty_sisa == $qty) {
-                    $updPO1->enum_tipe_po = 0; //Aktif
-                } else {
-                    $updPO1->enum_tipe_po = 2; //Sebagian
-                }
-                $updPO1->save();
             }
             //var_dump($po_doc_key,$qty,$qty_sisa,$rp_sisa);
         }
