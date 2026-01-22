@@ -201,6 +201,9 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util/get-login-access', 'getLoginAccess');
         Route::get('util/get-objitem', 'getObjectItem');
         Route::get('util/get-persen-pajak', 'getPersenPajak');
+        Route::post('util/add-user-list', 'addUserList');
+        Route::post('util/add-user-online', 'addUserOnline');
+        Route::delete('util/del-user-online', 'delUserOnline');
         Route::delete('util', 'destroy');
         Route::post('util', 'store');
     });

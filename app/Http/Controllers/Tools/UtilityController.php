@@ -443,6 +443,67 @@ class UtilityController extends Controller
         return response()->success('Success',$response);
     }
 
+    public static function addUserList(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $tgl_doc=isset($request->tgl_doc) ? $request->tgl_doc : '';
+        $user= DB::table('t_user_list')
+            ->where('user_id',$user_id)
+            ->where('tgl_transaksi',$tgl_doc)
+            ->first();
+        if (!($user)) {
+            DB::table('t_user_list')
+                ->insert([
+                    'tgl_transaksi'=>date('Y-m-d H:i:s'),
+                    'user_id'=>$user_id,
+                    'jam_awal'=>date('H:i:s')
+                ]);
+        } else {
+            DB::table('t_user_list')
+                ->where('user_id',$user_id)
+                ->where('tgl_transaksi',$tgl_doc)
+                ->update([
+                    'jam_akhir'=>date('H:i:s')
+                ]);
+        }
+        $response['message'] = 'Update data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function addUserOnline(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $pid=isset($request->pid) ? $request->pid : 0;
+        $mac_add=isset($request->mac_add) ? $request->mac_add : 0;
+        $user= DB::table('t_user_online')
+            ->where('user_id',$user_id)
+            ->where('pid',$pid)
+            ->first();
+        if (!($user)) {
+            DB::table('t_user_online')
+                ->insert([
+                    'pid'=>$pid,
+                    'user_id'=>$user_id,
+                    'tgl_tran'=>date('Y-m-d H:i:s'),
+                    'jam'=>date('H:i:s'),
+                    'mac_address'=>$mac_add,
+                    'catatan'=>'IKI KOUE',
+                    'fl_locked'=>false
+                ]);
+        }
+        $response['message'] = 'Tambah data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function delUserOnline(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $pid=isset($request->pid) ? $request->pid : 0;
+        DB::table('t_user_online')
+            ->where('user_id',$user_id)
+            ->where('pid',$pid)
+            ->delete();
+        $response['message'] = 'Hapus data berhasil';
+        return response()->success('Success',$response);
+    }
+
     public function destroy(Request $request) {
         $doc_name=isset($request->doc_name) ? $request->doc_name : '';
         NoTran::where('doc_name',$doc_name)->delete();
