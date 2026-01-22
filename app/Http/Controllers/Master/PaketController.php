@@ -107,6 +107,7 @@ class PaketController extends Controller
         //Master Bahan
         $data['m_bahan']= Paket1::from('m_bahan as a')
         ->selectRaw("a.*")
+        ->where("fl_aktif",'True')
         ->orderBy("a.kd_bahan","asc")
         ->get();
 

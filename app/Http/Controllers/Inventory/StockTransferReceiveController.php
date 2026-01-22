@@ -209,6 +209,7 @@ class StockTransferReceiveController extends Controller
             a.fl_jual, a.fl_beli, a.fl_stok, a.fl_pakai, a.fl_aktif, a.fl_harga_fix, a.fl_stock_transfer,
             a.bahan_klp_id, a.nm_bahan_barcode, a.plu_client,
             a.create_tgl, a.create_userid, a.create_lokasi, a.update_tgl, a.update_userid, a.update_lokasi")
+        ->where("a.fl_aktif","true")
         ->orderBy("a.kd_bahan")
         ->get();
 

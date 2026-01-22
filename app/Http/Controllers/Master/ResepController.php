@@ -157,6 +157,7 @@ class ResepController extends Controller
         //Master Bahan
         $data['m_bahan']= Resep1::from('m_bahan as a')
         ->selectRaw("a.*")
+        ->where('a.fl_aktif','=','true')
         ->orderBy("a.kd_bahan","asc")
         ->get();
 
