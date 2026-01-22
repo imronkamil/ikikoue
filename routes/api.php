@@ -204,6 +204,8 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::post('util/add-user-list', 'addUserList');
         Route::post('util/add-user-online', 'addUserOnline');
         Route::delete('util/del-user-online', 'delUserOnline');
+        Route::get('util/get-proses-upload', 'getProsesUpload');
+        Route::post('util/add-proses-upload', 'addProsesUpload');
         Route::delete('util', 'destroy');
         Route::post('util', 'store');
     });
@@ -384,7 +386,21 @@ Route::group(['prefix' => 'sales', 'as' => 'sales', 'middleware' => 'appauth'], 
         Route::get('so/get-allref', 'getAllRef');
         Route::delete('so', 'destroy');
         Route::post('so/set-batal', 'setBatal');
+        Route::get('so/get-proses-jurnal', 'getProsesJurnal');
+        Route::post('so/set-proses-jurnal', 'setProsesJurnal');
         Route::post('so', 'store');
+    });
+    Route::controller(\Sales\JualPOSController::class)->group(function () {
+        Route::get('jual', 'show1');
+        Route::get('jual/all', 'show2');
+        Route::get('jual/get', 'get');
+        Route::get('jual/get-batal', 'getBatal');
+        Route::get('jual/get-allref', 'getAllRef');
+        Route::delete('jual', 'destroy');
+        Route::post('jual/set-batal', 'setBatal');
+        Route::get('jual/get-proses-jurnal', 'getProsesJurnal');
+        Route::post('jual/set-proses-jurnal', 'setProsesJurnal');
+        Route::post('jual', 'store');
     });
 });
 

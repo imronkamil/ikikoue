@@ -937,41 +937,39 @@ class SalesOrderController extends Controller
         return response()->success('Success',$response);
     }
 
-    public function prosesJurnal(Request $request) {
+    public function getProsesJurnal(Request $request) {
         $tgl_awal= $request->input('tgl_awal','');
         $tgl_kini= date('Y-m-d');
-        $user_id= $request->input('user_id','');
-        $salesOrders= SO1::from('t_so1 as a')
+        $data['t_so1']= SO1::from('t_so1 as a')
             ->leftJoin('m_account_dtl as b','a.doc_key','=','b.base_doc_key')
+            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.nm_partner, a.rp_total")
             ->whereRaw("a.tgl_doc >= '".$tgl_awal."' AND a.tgl_doc <= '".$tgl_kini."'")
             ->whereRaw("(COALESCE(a.fl_batal,'false') = 'false')")
             ->whereRaw("(COALESCE(a.fl_pass,'false') = 'false')")
             ->whereNull('b.dtl_key')
             ->where('a.rp_total','>',0)
             ->get();
-        foreach ($salesOrders as $recSO) {
-            $this->generateJurnal($recSO->doc_key, $user_id);
-        }
-        $response['message'] = 'Proses Jurnal Selesai';
-        return response()->success('Success',$response);
+        return response()->success('Success',$data);
     }
 
-    public function prosesJurnalPOS(Request $request) {
-        $tgl_awal= $request->input('tgl_awal','');
-        $tgl_kini= date('Y-m-d');
+    public function setProsesJurnal(Request $request) {
+        $doc_key= $request->input('doc_key',0);
         $user_id= $request->input('user_id','');
-        $salesPOS= DB::from('t_jual as a')
-            ->leftJoin('m_account_dtl as b','a.doc_key','=','b.base_doc_key')
-            ->whereRaw("a.tgl_doc >= '".$tgl_awal."' AND a.tgl_doc <= '".$tgl_kini."'")
-            ->whereRaw("(COALESCE(a.fl_tutup,'false') = 'true')")
-            ->whereNull('b.dtl_key')
-            ->where('a.rp_total_harga','>',0)
-            ->get();
-        foreach ($salesPOS as $recPOS) {
-            $this->generateJurnal($recPOS->doc_key, $user_id);
+        DB::beginTransaction();
+        try {
+            if (UtilityController::getAutoStok() == 'true') {
+                self::updateStok($doc_key, TRUE);
+            }
+            if (UtilityController::getAutoJurnal() == 'true') {
+                self::generateJurnal($doc_key, $user_id);
+            }
+            DB::commit();
+            $response['message'] = 'Proses Jurnal Selesai';
+            return response()->success('Success',$response);
+        } catch(Throwable $e) {
+            DB::rollback();
+            throw $e;
         }
-        $response['message'] = 'Proses Jurnal Selesai';
-        return response()->success('Success',$response);
     }
 
     public function store(Request $request) {

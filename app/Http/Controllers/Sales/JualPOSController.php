@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use App\Models\Accounting\AccountDtl;
 use App\Models\Sales\Jual;
 use App\Models\Sales\JualBahan;
+use App\Models\Sales\JualBahanFifo;
 use App\Models\Sales\JualBayar;
 use App\Models\Finance\ARDP1;
 use App\Models\Master\Lokasi;
@@ -333,7 +334,7 @@ class JualPOSController extends Controller
         $dataStokFifoAllNon= [];
         if ($insert == FALSE) {
             $dataTrans= Jual::from("t_jual as a")
-            ->leftJoin("t_so2_fifo as b","a.doc_key","=","b.doc_key")
+            ->leftJoin("t_jual_bahan_fifo as b","a.doc_key","=","b.doc_key")
             ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
                 b.dtl2_fifo_key, b.dtl2_key, b.kd_bahan, b.satuan, b.qty, b.stok_fifo_key")
             ->where("a.doc_key",$doc_key)
@@ -367,22 +368,19 @@ class JualPOSController extends Controller
             JualBahanFifo::where("doc_key",$doc_key)->delete();
             //Append JualBahanFifo
             $dataTrans= Jual::from("t_jual as a")
-            ->join("t_so2 as b","a.doc_key","=","b.doc_key")
+            ->join("t_jual_bahan as b","a.doc_key","=","b.doc_key")
             ->join("m_bahan as c","b.kd_bahan","=","c.kd_bahan")
             ->join("m_bahan_satuan as d", function ($join) {
                 $join->on('b.kd_bahan','=','d.kd_bahan')
                      ->on('b.satuan','=','d.satuan');
             })
-            ->leftJoin("t_so2 as e","b.parent_dtl2_key","=","e.dtl2_key")
-            //->leftJoin("t_so2 as e","b.no_urut_parent","=","e.no_urut")
             ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi,
-                b.*, c.satuan AS satuan_dasar2, d.rasio,
-                CAST(COALESCE(b.qty,b.sub_qty*e.qty) AS numeric(18,4)) AS qty_sales")
+                b.*, c.satuan AS satuan_dasar2, d.rasio")
             ->where("a.doc_key",$doc_key)
             ->orderBy("b.no_urut")
             ->get();
             foreach($dataTrans as $recTrans) {
-                $qty= $recTrans->qty_sales * $recTrans->rasio;
+                $qty= $recTrans->qty * $recTrans->rasio;
                 //FIFO Header
                 $dataStokFifo= StokFifo::where("kd_lokasi",$recTrans->kd_lokasi)
                     ->where("kd_bahan",$recTrans->kd_bahan)
@@ -539,48 +537,29 @@ class JualPOSController extends Controller
         AccountDtl::where('base_doc_key',$doc_key)->delete();
 
         //Jurnal Piutang dan Penjualan
-        $subJ1= DB::table('t_so2 as a')
-        ->selectRaw("a.doc_key, SUM(COALESCE(a.rp_diskon,0)) AS rp_diskon")
-        ->where("a.doc_key",$doc_key)
-        ->whereNull("a.parent_dtl2_key")
-        ->groupBy("a.doc_key");
-        $subJ2= DB::table('t_so6 as a')
-        ->selectRaw("a.doc_key, SUM(COALESCE(a.rp_jumlah,0)) AS rp_jumlah")
-        ->where("a.doc_key",$doc_key)
-        ->groupBy("a.doc_key");
         $jurnal= Jual::from('t_jual as a')
-        ->leftJoinSub($subJ1,'b', function ($join) {
-            $join->on('a.doc_key','=','b.doc_key');
-        })
-        ->leftJoinSub($subJ2,'c', function ($join) {
-            $join->on('a.doc_key','=','c.doc_key');
-        })
-        ->leftJoin('m_customer as d','a.kd_partner','=','d.kd_customer')
-        ->leftJoin('m_customer_grup as e','d.kd_customer_grup','=','e.kd_customer_grup')
-        ->selectRaw("a.*, b.rp_diskon AS rp_diskon_dtl, c.rp_jumlah AS rp_jumlah_dp, e.no_account AS no_account_cust")
+        ->selectRaw("a.*")
         ->where("a.doc_key",$doc_key)
-        ->whereRaw("(COALESCE(a.fl_batal,'false') = 'false')")
-        ->whereRaw("(COALESCE(a.fl_pass,'false') = 'false')")
         ->get();
         //Jurnal Debet (Penjualan)
         foreach($jurnal as $recJurnal) {
             //Piutang
-            if ($recJurnal->rp_total-$recJurnal->rp_jumlah_dp != 0) {
+            if ($recJurnal->rp_total_harga != 0) {
                 $jurnalPiutang= new AccountDtl();
                 $jurnalPiutang->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalPiutang->no_account = $recJurnal->no_account_cust;
+                $jurnalPiutang->no_account = UtilityController::getAccountConfig('no_acc_pos_piutang');
                 $jurnalPiutang->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_total-$recJurnal->rp_jumlah_dp > 0) {
+                if ($recJurnal->rp_total_harga > 0 && $recJurnal->fl_retur == 'false') {
                     $jurnalPiutang->enum_debet_kredit = 'D';
-                    $jurnalPiutang->rp_debet = abs($recJurnal->rp_total-$recJurnal->rp_jumlah_dp);
+                    $jurnalPiutang->rp_debet = abs($recJurnal->rp_total_harga);
                     $jurnalPiutang->rp_kredit = 0;
                 } else {
                     $jurnalPiutang->enum_debet_kredit = 'K';
                     $jurnalPiutang->rp_debet = 0;
-                    $jurnalPiutang->rp_kredit = abs($recJurnal->rp_total-$recJurnal->rp_jumlah_dp);
+                    $jurnalPiutang->rp_kredit = abs($recJurnal->rp_total_harga);
                 }
                 $jurnalPiutang->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalPiutang->catatan = $recJurnal->nm_partner;
+                $jurnalPiutang->catatan = $recJurnal->no_doc;
                 $jurnalPiutang->no_ref1 = $recJurnal->no_doc;
                 $jurnalPiutang->no_ref2 = '';
                 $jurnalPiutang->user_id = $user_id;
@@ -590,39 +569,13 @@ class JualPOSController extends Controller
                 $jurnalPiutang->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
                 $jurnalPiutang->save();
             }
-            //DP
-            if ($recJurnal->rp_jumlah_dp != 0) {
-                $jurnalDP= new AccountDtl();
-                $jurnalDP->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalDP->no_account = UtilityController::getAccountConfig('no_acc_so_dp');
-                $jurnalDP->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_jumlah_dp > 0) {
-                    $jurnalDP->enum_debet_kredit = 'D';
-                    $jurnalDP->rp_debet = abs($recJurnal->rp_jumlah_dp);
-                    $jurnalDP->rp_kredit = 0;
-                } else {
-                    $jurnalDP->enum_debet_kredit = 'K';
-                    $jurnalDP->rp_debet = 0;
-                    $jurnalDP->rp_kredit = abs($recJurnal->rp_jumlah_dp);
-                }
-                $jurnalDP->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalDP->catatan = $recJurnal->nm_partner;
-                $jurnalDP->no_ref1 = $recJurnal->no_doc;
-                $jurnalDP->no_ref2 = '';
-                $jurnalDP->user_id = $user_id;
-                $jurnalDP->base_type = $docTrans; //Sales Order
-                $jurnalDP->base_doc_key = $recJurnal->doc_key;
-                //$jurnalDP->base_dtl_key = $recJurnal->doc_key;
-                $jurnalDP->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
-                $jurnalDP->save();
-            }
             //Diskon
             if ($recJurnal->rp_diskon != 0) {
                 $jurnalDiskon= new AccountDtl();
                 $jurnalDiskon->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalDiskon->no_account = UtilityController::getAccountConfig('no_acc_so_diskon');
+                $jurnalDiskon->no_account = UtilityController::getAccountConfig('no_acc_pos_diskon');
                 $jurnalDiskon->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_diskon > 0) {
+                if ($recJurnal->rp_diskon > 0 && $recJurnal->fl_retur == 'false') {
                     $jurnalDiskon->enum_debet_kredit = 'D';
                     $jurnalDiskon->rp_debet = abs($recJurnal->rp_diskon);
                     $jurnalDiskon->rp_kredit = 0;
@@ -632,7 +585,7 @@ class JualPOSController extends Controller
                     $jurnalDiskon->rp_kredit = abs($recJurnal->rp_diskon);
                 }
                 $jurnalDiskon->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalDiskon->catatan = $recJurnal->nm_partner;
+                $jurnalDiskon->catatan = $recJurnal->no_doc;
                 $jurnalDiskon->no_ref1 = $recJurnal->no_doc;
                 $jurnalDiskon->no_ref2 = '';
                 $jurnalDiskon->user_id = $user_id;
@@ -642,75 +595,23 @@ class JualPOSController extends Controller
                 $jurnalDiskon->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
                 $jurnalDiskon->save();
             }
-            //Diskon Detail
-            if ($recJurnal->rp_diskon_dtl != 0) {
-                $jurnalDiskonDtl= new AccountDtl();
-                $jurnalDiskonDtl->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalDiskonDtl->no_account = UtilityController::getAccountConfig('no_acc_so_diskon');
-                $jurnalDiskonDtl->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_diskon_dtl > 0) {
-                    $jurnalDiskonDtl->enum_debet_kredit = 'D';
-                    $jurnalDiskonDtl->rp_debet = abs($recJurnal->rp_diskon_dtl);
-                    $jurnalDiskonDtl->rp_kredit = 0;
-                } else {
-                    $jurnalDiskonDtl->enum_debet_kredit = 'K';
-                    $jurnalDiskonDtl->rp_debet = 0;
-                    $jurnalDiskonDtl->rp_kredit = abs($recJurnal->rp_diskon_dtl);
-                }
-                $jurnalDiskonDtl->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalDiskonDtl->catatan = $recJurnal->nm_partner;
-                $jurnalDiskonDtl->no_ref1 = $recJurnal->no_doc;
-                $jurnalDiskonDtl->no_ref2 = '';
-                $jurnalDiskonDtl->user_id = $user_id;
-                $jurnalDiskonDtl->base_type = $docTrans; //Sales Order
-                $jurnalDiskonDtl->base_doc_key = $recJurnal->doc_key;
-                //$jurnalDiskonDtl->base_dtl_key = $recJurnal->doc_key;
-                $jurnalDiskonDtl->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
-                $jurnalDiskonDtl->save();
-            }
-            //PPh23
-            if ($recJurnal->rp_pph23 != 0) {
-                $jurnalPPh23= new AccountDtl();
-                $jurnalPPh23->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalPPh23->no_account = UtilityController::getAccountConfig('no_acc_so_pph23');
-                $jurnalPPh23->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_pph23 > 0) {
-                    $jurnalPPh23->enum_debet_kredit = 'D';
-                    $jurnalPPh23->rp_debet = abs($recJurnal->rp_pph23);
-                    $jurnalPPh23->rp_kredit = 0;
-                } else {
-                    $jurnalPPh23->enum_debet_kredit = 'K';
-                    $jurnalPPh23->rp_debet = 0;
-                    $jurnalPPh23->rp_kredit = abs($recJurnal->rp_pph23);
-                }
-                $jurnalPPh23->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalPPh23->catatan = $recJurnal->nm_partner;
-                $jurnalPPh23->no_ref1 = $recJurnal->no_doc;
-                $jurnalPPh23->no_ref2 = '';
-                $jurnalPPh23->user_id = $user_id;
-                $jurnalPPh23->base_type = $docTrans; //Sales Order
-                $jurnalPPh23->base_doc_key = $recJurnal->doc_key;
-                //$jurnalPPh23->base_dtl_key = $recJurnal->doc_key;
-                $jurnalPPh23->kd_project = UtilityController::getKodeProjectByLokasi($recJurnal->kd_lokasi);
-                $jurnalPPh23->save();
-            }
             //Rounding
-            if ($recJurnal->rp_rounding != 0) {
+            if ($recJurnal->rp_pembulatan != 0) {
                 $jurnalRounding= new AccountDtl();
                 $jurnalRounding->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalRounding->no_account = UtilityController::getAccountConfig('no_acc_so_rounding');
+                $jurnalRounding->no_account = UtilityController::getAccountConfig('no_acc_pos_rounding');
                 $jurnalRounding->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_rounding > 0) {
+                if ($recJurnal->rp_pembulatan > 0 && $recJurnal->fl_retur == 'false') {
+                    $jurnalRounding->enum_debet_kredit = 'D';
+                    $jurnalRounding->rp_debet = abs($recJurnal->rp_pembulatan);
+                    $jurnalRounding->rp_kredit = 0;
+                } else {
                     $jurnalRounding->enum_debet_kredit = 'K';
                     $jurnalRounding->rp_debet = 0;
-                    $jurnalRounding->rp_kredit = abs($recJurnal->rp_rounding);
-                } else {
-                    $jurnalRounding->enum_debet_kredit = 'D';
-                    $jurnalRounding->rp_debet = abs($recJurnal->rp_rounding);
-                    $jurnalRounding->rp_kredit = 0;
+                    $jurnalRounding->rp_kredit = abs($recJurnal->rp_pembulatan);
                 }
                 $jurnalRounding->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalRounding->catatan = $recJurnal->nm_partner;
+                $jurnalRounding->catatan = $recJurnal->no_doc;
                 $jurnalRounding->no_ref1 = $recJurnal->no_doc;
                 $jurnalRounding->no_ref2 = '';
                 $jurnalRounding->user_id = $user_id;
@@ -721,22 +622,22 @@ class JualPOSController extends Controller
                 $jurnalRounding->save();
             }
             //Pendapatan
-            if ($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl != 0) {
+            if ($recJurnal->rp_jumlah_harga != 0) {
                 $jurnalIncome= new AccountDtl();
                 $jurnalIncome->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalIncome->no_account = UtilityController::getAccountConfig('no_acc_so');
+                $jurnalIncome->no_account = UtilityController::getAccountConfig('no_acc_pos');
                 $jurnalIncome->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl > 0) {
+                if ($recJurnal->rp_jumlah_harga > 0 && $recJurnal->fl_retur == 'false') {
                     $jurnalIncome->enum_debet_kredit = 'K';
                     $jurnalIncome->rp_debet = 0;
-                    $jurnalIncome->rp_kredit = abs($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl);
+                    $jurnalIncome->rp_kredit = abs($recJurnal->rp_jumlah_harga);
                 } else {
                     $jurnalIncome->enum_debet_kredit = 'D';
-                    $jurnalIncome->rp_debet = abs($recJurnal->rp_total_awal+$recJurnal->rp_diskon_dtl);
+                    $jurnalIncome->rp_debet = abs($recJurnal->rp_jumlah_harga);
                     $jurnalIncome->rp_kredit = 0;
                 }
                 $jurnalIncome->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalIncome->catatan = $recJurnal->nm_partner;
+                $jurnalIncome->catatan = $recJurnal->no_doc;
                 $jurnalIncome->no_ref1 = $recJurnal->no_doc;
                 $jurnalIncome->no_ref2 = '';
                 $jurnalIncome->user_id = $user_id;
@@ -750,9 +651,9 @@ class JualPOSController extends Controller
             if ($recJurnal->rp_biaya != 0) {
                 $jurnalBiaya= new AccountDtl();
                 $jurnalBiaya->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalBiaya->no_account = UtilityController::getAccountConfig('no_acc_so_ongkir');
+                $jurnalBiaya->no_account = UtilityController::getAccountConfig('no_acc_pos_ongkir');
                 $jurnalBiaya->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_biaya > 0) {
+                if ($recJurnal->rp_biaya > 0 && $recJurnal->fl_retur == 'false') {
                     $jurnalBiaya->enum_debet_kredit = 'K';
                     $jurnalBiaya->rp_debet = 0;
                     $jurnalBiaya->rp_kredit = abs($recJurnal->rp_biaya);
@@ -762,7 +663,7 @@ class JualPOSController extends Controller
                     $jurnalBiaya->rp_kredit = 0;
                 }
                 $jurnalBiaya->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalBiaya->catatan = $recJurnal->nm_partner;
+                $jurnalBiaya->catatan = $recJurnal->no_doc;
                 $jurnalBiaya->no_ref1 = $recJurnal->no_doc;
                 $jurnalBiaya->no_ref2 = '';
                 $jurnalBiaya->user_id = $user_id;
@@ -773,22 +674,22 @@ class JualPOSController extends Controller
                 $jurnalBiaya->save();
             }
             //PPN
-            if ($recJurnal->rp_pajak != 0) {
+            if ($recJurnal->rp_ppn != 0) {
                 $jurnalPPN= new AccountDtl();
                 $jurnalPPN->dtl_key = DocNoController::getDocKey('doc_key');
-                $jurnalPPN->no_account = UtilityController::getAccountConfig('no_acc_so_ppn');
+                $jurnalPPN->no_account = UtilityController::getAccountConfig('no_acc_pos_ppn');
                 $jurnalPPN->kd_lokasi = $recJurnal->kd_lokasi;
-                if ($recJurnal->rp_pajak > 0) {
+                if ($recJurnal->rp_ppn > 0 && $recJurnal->fl_retur == 'false') {
                     $jurnalPPN->enum_debet_kredit = 'K';
                     $jurnalPPN->rp_debet = 0;
-                    $jurnalPPN->rp_kredit = abs($recJurnal->rp_pajak);
+                    $jurnalPPN->rp_kredit = abs($recJurnal->rp_ppn);
                 } else {
                     $jurnalPPN->enum_debet_kredit = 'D';
-                    $jurnalPPN->rp_debet = abs($recJurnal->rp_pajak);
+                    $jurnalPPN->rp_debet = abs($recJurnal->rp_ppn);
                     $jurnalPPN->rp_kredit = 0;
                 }
                 $jurnalPPN->tgl_doc = $recJurnal->tgl_doc;
-                $jurnalPPN->catatan = $recJurnal->nm_partner;
+                $jurnalPPN->catatan = $recJurnal->no_doc;
                 $jurnalPPN->no_ref1 = $recJurnal->no_doc;
                 $jurnalPPN->no_ref2 = '';
                 $jurnalPPN->user_id = $user_id;
@@ -804,41 +705,39 @@ class JualPOSController extends Controller
         return response()->success('Success',$response);
     }
 
-    public function prosesJurnal(Request $request) {
+    public function getProsesJurnal(Request $request) {
         $tgl_awal= $request->input('tgl_awal','');
         $tgl_kini= date('Y-m-d');
-        $user_id= $request->input('user_id','');
-        $salesOrders= Jual::from('t_jual as a')
+        $data['t_jual']= DB::table('t_jual as a')
             ->leftJoin('m_account_dtl as b','a.doc_key','=','b.base_doc_key')
-            ->whereRaw("a.tgl_doc >= '".$tgl_awal."' AND a.tgl_doc <= '".$tgl_kini."'")
-            ->whereRaw("(COALESCE(a.fl_batal,'false') = 'false')")
-            ->whereRaw("(COALESCE(a.fl_pass,'false') = 'false')")
-            ->whereNull('b.dtl_key')
-            ->where('a.rp_total','>',0)
-            ->get();
-        foreach ($salesOrders as $recSO) {
-            $this->generateJurnal($recSO->doc_key, $user_id);
-        }
-        $response['message'] = 'Proses Jurnal Selesai';
-        return response()->success('Success',$response);
-    }
-
-    public function prosesJurnalPOS(Request $request) {
-        $tgl_awal= $request->input('tgl_awal','');
-        $tgl_kini= date('Y-m-d');
-        $user_id= $request->input('user_id','');
-        $salesPOS= DB::from('t_jual as a')
-            ->leftJoin('m_account_dtl as b','a.doc_key','=','b.base_doc_key')
+            ->selectRaw("a.doc_key, a.no_doc, a.tgl_doc, a.kd_lokasi, a.rp_total_harga,
+                b.dtl_key")
             ->whereRaw("a.tgl_doc >= '".$tgl_awal."' AND a.tgl_doc <= '".$tgl_kini."'")
             ->whereRaw("(COALESCE(a.fl_tutup,'false') = 'true')")
             ->whereNull('b.dtl_key')
             ->where('a.rp_total_harga','>',0)
             ->get();
-        foreach ($salesPOS as $recPOS) {
-            $this->generateJurnal($recPOS->doc_key, $user_id);
+        return response()->success('Success',$data);
+    }
+
+    public function setProsesJurnal(Request $request) {
+        $doc_key= $request->input('doc_key',0);
+        $user_id= $request->input('user_id','');
+        DB::beginTransaction();
+        try {
+            if (UtilityController::getAutoStok() == 'true') {
+                self::updateStok($doc_key, TRUE);
+            }
+            if (UtilityController::getAutoJurnal() == 'true') {
+                self::generateJurnal($doc_key, $user_id);
+            }
+            DB::commit();
+            $response['message'] = 'Proses Jurnal Selesai';
+            return response()->success('Success',$response);
+        } catch(Throwable $e) {
+            DB::rollback();
+            throw $e;
         }
-        $response['message'] = 'Proses Jurnal Selesai';
-        return response()->success('Success',$response);
     }
 
     public function store(Request $request) {

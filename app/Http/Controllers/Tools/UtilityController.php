@@ -181,7 +181,7 @@ class UtilityController extends Controller
     public static function getDateSys(Request $request) {
         $system_id=isset($request->system_id) ? $request->system_id : '';
         $value= self::getDateLocal($system_id);
-        $response['value'] = $value;
+        $response['value'] = date('d/m/Y', strtotime($value));
         return response()->success('Success',$response);
     }
 
@@ -500,6 +500,37 @@ class UtilityController extends Controller
             ->where('user_id',$user_id)
             ->where('pid',$pid)
             ->delete();
+        $response['message'] = 'Hapus data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function getProsesUpload(Request $request) {
+        $kd_pajak=isset($request->kd_pajak) ? $request->kd_pajak : '';
+        $upload= DB::table('i_upload as a')
+            ->selectRaw('a.*')
+            ->get();
+        if ($upload->count()>0) {
+            $value = 'true';
+        } else {
+            $value = 'false';
+        }
+        $response['value'] = $value;
+        return response()->success('Success',$response);
+    }
+
+    public static function addProsesUpload(Request $request) {
+        $user_id=isset($request->user_id) ? $request->user_id : '';
+        $pid=isset($request->pid) ? $request->pid : 0;
+        $mac_add=isset($request->mac_add) ? $request->mac_add : 0;
+        DB::table('i_upload')
+            ->insert([
+                'pid'=>$pid,
+                'user_id'=>$user_id,
+                'tgl_tran'=>date('Y-m-d H:i:s'),
+                'jam'=>date('H:i:s'),
+                'mac_address'=>$mac_add,
+                'catatan'=>'IKI KOUE'
+            ]);
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }
