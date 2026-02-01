@@ -188,6 +188,7 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::get('util/get-date-sys', 'getDateSys');
         Route::get('util/get-boolean-sys', 'getBooleanSys');
         Route::get('util/get-status-bytglopname', 'getStatusByTglOpname');
+        Route::get('util/get-opname-akhir', 'getTglOpnameAkhir');
         Route::get('util/get-fiscaldate-status', 'getPostingDateStatus');
         Route::get('util/get-kodeproject', 'getKodeProjectByLokasi');
         Route::get('util/get-hakmenu', 'getHakMenu');
@@ -206,6 +207,7 @@ Route::group(['prefix' => 'tools', 'as' => 'tools', 'middleware' => 'appauth'], 
         Route::delete('util/del-user-online', 'delUserOnline');
         Route::get('util/get-proses-upload', 'getProsesUpload');
         Route::post('util/add-proses-upload', 'addProsesUpload');
+        Route::delete('util/del-proses-upload', 'delProsesUpload');
         Route::delete('util', 'destroy');
         Route::post('util', 'store');
     });

@@ -86,6 +86,21 @@ class UtilityController extends Controller
         //return response()->success('Success',$response);
     }
 
+    public static function getTglOpnameAkhir(Request $request) {
+        $kd_lokasi=isset($request->kd_lokasi) ? $request->kd_lokasi : '';
+        $t_opname1= Opname1::from('t_opname1 as a')
+        ->selectRaw("a.doc_key, a.tgl_doc")
+        ->where("a.kd_lokasi",$kd_lokasi)
+        ->orderBy('a.tgl_doc','desc')
+        ->first();
+        if ($t_opname1) {
+            $response['value'] = date('d/m/Y',strtotime($t_opname1->tgl_doc));
+        } else {
+            $response['value'] = date('d/m/Y',strtotime('1/1/1970'));
+        }
+        return response()->success('Success',$response);
+    }
+
     public static function getPostingDateStatus(Request $request) {
         $tgl_doc=isset($request->tgl_doc) ? $request->tgl_doc : '';
         $data['m_fiscal_period']= FiscalPeriod::from('m_fiscal_period as a')
@@ -505,12 +520,18 @@ class UtilityController extends Controller
     }
 
     public static function getProsesUpload(Request $request) {
-        $kd_pajak=isset($request->kd_pajak) ? $request->kd_pajak : '';
         $upload= DB::table('i_upload as a')
             ->selectRaw('a.*')
             ->get();
         if ($upload->count()>0) {
-            $value = 'true';
+            $uploadTs = strtotime($upload->tgl_tran.' '.$upload->jam);
+            $nowTs    = time() - 7200; //jika > 2 jam maka dianggap selesai
+            if ($uploadTs < $nowTs) {
+                $value = 'false';
+                DB::table('i_upload')->delete();
+            } else {
+                $value = 'true';
+            }
         } else {
             $value = 'false';
         }
@@ -531,6 +552,12 @@ class UtilityController extends Controller
                 'mac_address'=>$mac_add,
                 'catatan'=>'IKI KOUE'
             ]);
+        $response['message'] = 'Hapus data berhasil';
+        return response()->success('Success',$response);
+    }
+
+    public static function delProsesUpload(Request $request) {
+        DB::table('i_upload')->delete();
         $response['message'] = 'Hapus data berhasil';
         return response()->success('Success',$response);
     }

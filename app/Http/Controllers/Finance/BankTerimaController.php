@@ -613,13 +613,13 @@ class BankTerimaController extends Controller
                 $jurnalPPh23->no_account = UtilityController::getAccountConfig('no_acc_bm_pph23');
                 $jurnalPPh23->kd_lokasi = $recJurnal->kd_lokasi;
                 if ($recJurnal->rp_pph_komisi > 0) {
-                    $jurnalPPh23->enum_debet_kredit = 'K';
-                    $jurnalPPh23->rp_debet = 0;
-                    $jurnalPPh23->rp_kredit = abs($recJurnal->rp_pph_komisi);
-                } else {
                     $jurnalPPh23->enum_debet_kredit = 'D';
                     $jurnalPPh23->rp_debet = abs($recJurnal->rp_pph_komisi);
                     $jurnalPPh23->rp_kredit = 0;
+                } else {
+                    $jurnalPPh23->enum_debet_kredit = 'K';
+                    $jurnalPPh23->rp_debet = 0;
+                    $jurnalPPh23->rp_kredit = abs($recJurnal->rp_pph_komisi);
                 }
                 $jurnalPPh23->tgl_doc = $recJurnal->tgl_doc;
                 $jurnalPPh23->catatan = $recJurnal->base_no_doc.'-'.$recJurnal->catatan;
@@ -634,7 +634,7 @@ class BankTerimaController extends Controller
             }
             //Piutang (Kredit)
             $piutang= $recJurnal->rp_bayar + $recJurnal->rp_komisi + $recJurnal->rp_ppn_komisi +
-                $recJurnal->rp_charge - $recJurnal->rp_pph_komisi;
+                $recJurnal->rp_pph_komisi + $recJurnal->rp_charge;
             if ($piutang != 0) {
                 $jurnalPiutang = new AccountDtl();
                 $jurnalPiutang->dtl_key = DocNoController::getDocKey('doc_key');

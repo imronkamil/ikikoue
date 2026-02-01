@@ -368,6 +368,7 @@ class CustomerController extends Controller
             $custBahan->kd_bahan       = $recMaster3['kd_bahan'];
             $custBahan->catatan        = $recMaster3['catatan'];
             $custBahan->rp_harga       = $recMaster3['rp_harga'];
+            $custBahan->no_urut        = $recMaster3['no_urut'];
             $custBahan->save();
         }
 
